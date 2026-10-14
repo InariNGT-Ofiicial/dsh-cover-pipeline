@@ -1,0 +1,30 @@
+# 依赖与本地状态
+node_modules/
+.pnpm-store/
+
+# 运行产物（★ 别把音频/中间件推上去：体积大且涉及版权）
+*.wav
+*.mp3
+*.flac
+*.npy
+*.npz
+*.pt
+*.ckpt
+!test/fixtures/**
+
+# 临时与日志
+*.log
+tmp/
+.tmp/
+_output/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ★ 明确排除本机参考件（含个人路径与 DSH 内部配置树，不适合公开）
+参考_DSH合成配置树_*.txt
+_probe_e2e/

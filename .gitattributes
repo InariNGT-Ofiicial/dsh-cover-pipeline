@@ -1,0 +1,21 @@
+# ★ 关键：禁止行尾自动转换（CRLF ↔ LF）。
+#   本机 Windows + git 默认 core.autocrlf 可能把 LF 改成 CRLF，
+#   这会**静默改变文件字节**，让任何基于 sha256 的校验失效。
+#   本插件与配套工程都靠 sha256 做"逐字节一致"的自证，所以必须钉死。
+* -text
+
+# 文本文件统一 LF；但 .cmd/.ps1 保持 CRLF（Windows 原生脚本习惯）
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.md   text eol=lf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# 二进制不做任何处理
+*.png binary
+*.ico binary
+*.wav binary
+*.mp3 binary

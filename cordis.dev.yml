@@ -1,0 +1,30 @@
+# dsh-cover-pipeline —— 开发模式叠加层（零改动试用）
+#
+# 用法（**不修改任何 profile**，适合先试用 / 回归）：
+#   "D:\DSH\resources\runtime\cli\bin\dsh.cmd" web --patch "D:\AI-Song\dsh-plugin-cover\cordis.dev.yml"
+#
+# 与 cordis.patch.yml 的区别：
+#   · cordis.patch.yml  —— 随包分发，`dsh plugin add` 之后由 bundle 机制自动加载（长期安装）
+#   · cordis.dev.yml    —— 只通过 --patch 生效（临时试用；本文件里的 name 用**绝对路径**
+#                          直接指向插件目录，不需要先装进 profile 的 node_modules）
+#
+# 生效验证（只读，不挂载）：
+#   dsh.cmd web --patch <本文件> --dump-config | Select-String cover-pipeline
+- insert:
+    - id: cover-pipeline-dev
+      name: 'file:///D:/AI-Song/dsh-plugin-cover/src/index.js'
+      config:
+        songRoot: 'D:/AI-Song'
+        pipelineRoot: 'D:/AI-Song/_pipeline_bqll'
+        probeDir: 'D:/AI-Song/_pipeline_bqll/_probe'
+        mixDir: 'D:/AI-Song/_pipeline_mingyue'
+        msstDir: 'D:/AI-Song/01_人声分离_MSST-GUI'
+        msstEnv: 'D:/AI-Song/01_人声分离_MSST-GUI/env/python.exe'
+        ddspDir: 'D:/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2'
+        ddspEnv: 'D:/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/env/python.exe'
+        ffmpeg: 'D:/AI-Song/01_人声分离_MSST-GUI/env/ffmpeg.exe'
+        voiceModel: 'D:/AI-Song/03_音色模型_MYGO-AveMujica/祥子_步数20000/exp/reflow-test/model_20000.pt'
+        qualityLibDir: 'D:/AI-Song/_pipeline_bqll/_probe/_sq'
+        targetLufs: -14.0
+        timeoutMs: 3600000
+        maxOutputChars: 6000
