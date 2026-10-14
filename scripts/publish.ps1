@@ -50,10 +50,18 @@ Write-Host "[publish] tracked files: $((& git ls-files | Measure-Object).Count)"
 Write-Host "[publish] last commit  : $((& git log --oneline -1))"
 
 # The remote repo must already exist (we cannot create it without a token).
-& git ls-remote $remote *> $null
-if ($LASTEXITCODE -ne 0) {
+# NOTE: with $ErrorActionPreference='Stop', a native command writing to stderr
+# becomes a TERMINATING error -- so relax it around the probe, otherwise the
+# friendly "create it first" message below would never print.
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& git ls-remote $remote 2>&1 | Out-Null
+$probeRc = $LASTEXITCODE
+$ErrorActionPreference = $prevEap
+if ($probeRc -ne 0) {
   Write-Host "[publish] remote repo not found: $remote"
   Write-Host "[publish] create it EMPTY first: https://github.com/new?name=$Repo"
+  Write-Host "[publish] do NOT tick README / .gitignore / license -- keep it empty, so the first push has no conflict"
   exit 2
 }
 
