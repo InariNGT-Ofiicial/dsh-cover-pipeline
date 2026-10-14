@@ -244,11 +244,67 @@ dsh-plugin-cover\
 ├─ package.json         # dsh.bundle.patch 指向下面的 patch；type:module
 ├─ cordis.patch.yml     # 随包分发：- insert: [ cover-pipeline 行 ]（长期安装）
 ├─ cordis.dev.yml       # --patch 用：name 为 file:// 绝对路径（零改动试用）
+├─ LICENSE              # MIT（★ 不含也不授予任何模型权重/音色模型的授权）
+├─ .gitattributes       # ★ `* -text`：禁止 CRLF↔LF 自动转换（会静默破坏 sha256 自证）
 ├─ src\
 │  ├─ index.js          # 插件主体：11 个工具 + 阶段执行内核 + 产物自证
 │  ├─ config.js         # 默认值/归一化/脚本索引
 │  ├─ runner.js         # 子进程执行（spawn + 参数数组 ⇒ 中文与空格全免疫）
 │  ├─ checks.js         # doctor：一次 Python 调用拿回全部环境信息
 │  └─ stages.js         # 阶段命令构造 + FLOW/DECISIONS/GATES（方法论）
-└─ test\harness.mjs     # mock-ctx 契约自检（不重启 DSH）
+└─ test\
+   ├─ harness.mjs       # mock-ctx 契约自检（35 项，不重启 DSH）
+   └─ e2e.mjs           # 真机端到端（真跑 Python 流水线）
 ```
+
+---
+
+## 9 · 本机安装状态 / 卸载 / 分享
+
+### 已安装（2026-10-15，官方入口）
+
+```powershell
+& 'D:\DSH\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop add 'D:\AI-Song\dsh-plugin-cover'
+# 输出：+ dsh-cover-pipeline link:D:/AI-Song/dsh-plugin-cover     exit=0
+```
+
+它自动做了三件事（**不需要手改任何文件**）：
+
+| 动作 | 结果 |
+|---|---|
+| 写 profile 的 `dependencies` | `"dsh-cover-pipeline": "link:D:/AI-Song/dsh-plugin-cover"` |
+| 写 profile 的 `dsh.profile.bundles` | 追加 `"dsh-cover-pipeline"` |
+| 建 `node_modules` 链接 | `Junction` → `D:\AI-Song\dsh-plugin-cover`（**链接**，改源码即时生效） |
+
+**生效方式**：DSH 在**运行中热加载**了它 —— 无需重启即出现 `cover_*` 系列工具。
+（若你的版本没热加载，重启 DSH 即可；启动日志里会有
+`[cover-pipeline] 已注册 11 个工具: …`。）
+
+**验证**：在 DSH 里调用 `cover_doctor` —— 本机实测 **20 项全绿、0 警告**。
+
+### 卸载 / 回滚
+
+```powershell
+# 干净卸载（官方入口，会同时从 bundles 与 dependencies 里移除）
+& 'D:\DSH\resources\runtime\cli\bin\dsh.cmd' plugin --profile desktop remove dsh-cover-pipeline
+
+# 极端情况：直接编辑 profile 的 package.json，删掉 dependencies 与 bundles 里的那两项
+# 然后重启 DSH。profile 目录：%USERPROFILE%\.dsh\profiles\desktop\
+```
+
+> 卸载**不会**删除插件源码（`D:\AI-Song\dsh-plugin-cover`），也不会动流水线工程。
+
+### 分享
+
+```powershell
+# 分享版 zip（git archive 产出，不含 .git、不含任何音频/权重）
+D:\AI-Song\_交付\DSH插件_翻唱流水线\dsh-cover-pipeline-v1.0.0.zip
+# 41 KB ｜ 16 条目 ｜ sha256 前 16 位 7BE0C90F54FD230E
+```
+
+**接收方怎么用**：解压 → 改 `cordis.patch.yml` 里的路径（或设 `DSH_COVER_ROOT`）
+→ `dsh plugin --profile <profile> add <解压目录>` → 跑 `cover_doctor`。
+
+★ 仓库里的 `.gitattributes` 钉了 `* -text`：本插件与配套工程都靠 **sha256 做逐字节自证**，
+Windows 上若让 git 自动转换 CRLF↔LF，会让校验静默失效 —— 这是踩过的坑，别去掉。
+
