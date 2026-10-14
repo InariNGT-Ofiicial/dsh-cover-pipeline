@@ -67,9 +67,21 @@ if ($probeRc -ne 0) {
 
 if ($DryRun) { Write-Host "[publish] dry-run: would push $Branch -> origin"; exit 0 }
 
-& git remote remove origin 2> $null
-& git remote add origin $remote
+# Same trap as the probe above: `git remote remove origin` writes to stderr when
+# origin does not exist yet (the normal first-publish case), which under
+# ErrorActionPreference='Stop' would abort BEFORE the push. So: relax, prefer
+# set-url when origin already exists, and take exit codes explicitly.
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+$existingRemotes = & git remote 2>&1
+if ($existingRemotes -contains 'origin') {
+  & git remote set-url origin $remote 2>&1 | Out-Null
+} else {
+  & git remote add origin $remote 2>&1 | Out-Null
+}
 & git push -u origin $Branch
-if ($LASTEXITCODE -ne 0) { Write-Host "[publish] push failed"; exit 3 }
+$pushRc = $LASTEXITCODE
+$ErrorActionPreference = $prevEap
+if ($pushRc -ne 0) { Write-Host "[publish] push failed (rc=$pushRc)"; exit 3 }
 
 Write-Host "[publish] done -> https://github.com/$Owner/$Repo"
