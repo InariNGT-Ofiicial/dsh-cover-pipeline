@@ -30,10 +30,20 @@ export function inputsIn(folder) {
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
 const failure = (label, error, phase = 'precondition') => ({ ok: false, phase, label, error: String(error?.message ?? error), cmdline: '', artifacts: [], artifactsOk: false });
 
+function processFailure(r) {
+  if (r.timedOut) return 'Subprocess timed out';
+  const lines = `${r.stderr ?? ''}\n${r.stdout ?? ''}`.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const oom = lines.find(s => /(?:CUDA|GPU|Accelerator).*out of memory|OutOfMemoryError/i.test(s));
+  const cause = oom ?? [...lines].reverse().find(s => /(?:Error|Exception):|: error:|\[spawn error\]/.test(s));
+  return `Subprocess failed (exit ${r.code ?? 'unknown'}${r.signal ? `, signal ${r.signal}` : ''})${cause ? ': ' + cause.slice(0, 1800) : ''}`;
+}
+
 export async function runStage(cfg, key, args, opts = {}) {
   let spec, expected, inputs;
   try {
     spec = STAGES[key](cfg, args);
+    if (['shift', 'cut', 'release', 'qcCrack', 'qcConv', 'qcSection', 'qcBright', 'qcSource'].includes(key)
+        && !existsSync(spec.args[0])) throw new Error(`Missing optional/conditional tool script: ${spec.args[0]}`);
     inputs = opts.requires ?? [];
     const missing = inputs.filter(p => !p || !existsSync(p));
     if (missing.length) throw new Error(`Missing required inputs: ${missing.join(', ')}`);
@@ -92,6 +102,7 @@ export async function runStage(cfg, key, args, opts = {}) {
     }
     artifactsOk = true;
   } catch (e) { error = e.message; }
+  if (!r.ok) error = `${processFailure(r)}${error ? '; artifact validation: ' + error : ''}`;
   const result = { ok: r.ok && artifactsOk && technicalChecksPassed !== false, phase: 'executed', label: spec.label, cmdline: r.cmdline, cwd: spec.cwd, exitCode: r.code ?? -1, timedOut: r.timedOut, ms: r.ms, artifacts, artifactsOk, stdout: r.stdout, stderr: r.stderr };
   if (technicalChecksPassed !== undefined) result.technicalChecksPassed = technicalChecksPassed;
   if (error) result.error = error;
@@ -123,5 +134,5 @@ export async function runSeparation(cfg, args, opts = {}) {
     sources.forEach((f, i) => copyFileSync(resolve(args.outDir, basename(f, extname(f)), 'vocals.wav'), staged[i]));
   }
   const kara = await runStage(cfg, 'karaoke', { inputFolder: stageDir, sources: staged, outDir: resolve(args.outDir, 'kara'), dryRun: args.dryRun, timeoutMs: args.timeoutMs }, { ...opts, requires: args.dryRun ? [] : staged });
-  return { ...first, ok: first.ok && kara.ok, karaokeResult: kara };
+  return { ...first, ok: first.ok && kara.ok, ...(!kara.ok ? { error: `Secondary separation failed: ${kara.error ?? 'see karaokeResult'}` } : {}), karaokeResult: kara };
 }

@@ -257,13 +257,13 @@ export async function apply(ctx, config) {
         args.songPath ? `源: ${args.songPath}` : '源: **未提供**',
         args.voiceName ? `目标音色: ${args.voiceName}` : '目标音色: **未提供**',
         '',
-        '── 九段流程 ──',
+        '── 默认流程与可选步骤 ──',
         ...FLOW.map((f) => `  ${f.stage} ${f.name}  [工具 ${f.tool}]\n      ${f.detail}`),
         '',
-        '── 五个必须量、不许猜的决策点 ──',
+        '── 配置决策 ──',
         ...DECISIONS.map((d) => `  ${d.id} ${d.name}\n      为什么: ${d.why}\n      怎么量: ${d.how}\n      铁律: ${d.rule}`),
         '',
-        '── 五道验收门（缺一不算完成态）──',
+        '── 技术指标（不代替听审；LRA 为报告项）──',
         ...GATES.map(([k, v]) => `  ${k}: ${v}`),
         '',
         '── 纪律 ──',
@@ -479,12 +479,12 @@ export async function apply(ctx, config) {
   tools.register({
     name: 'cover_qc',
     description:
-      '质检套件，按 kind 选择：'
+      '可选诊断套件（非默认完成条件），按 kind 选择：'
       + 'crack=破音扫描（逐帧 vs 自身 ±0.5 s 邻域的 z 分数离群，用 lead/ref/a/b）；'
       + 'conv=换声有效性（MFCC 距离 + 时长/F0 是否被动过）；'
-      + 'section=逐段"像不像目标音色"（谱质心判据，用 win 指定窗口）；'
+      + 'section=逐段频谱画像（不判断音色身份，用 win 指定窗口）；'
       + 'bright=清亮画像（DIN 45692 尖锐度，需 mosqito）；'
-      + 'source=候选源音区体检（挑源用，判 P5 是否 ≳290 Hz）。',
+      + 'source=候选源音区调查（按模型和试听判断，不使用通用音域阈值）。',
     parameters: {
       type: 'object',
       properties: {
@@ -546,7 +546,7 @@ export async function apply(ctx, config) {
   tools.register({
     name: 'cover_release',
     description:
-      'S9 发布封装：wav → mp3 320k（lameenc）+ ID3v2.3（mutagen）+ ID3v1（手工 128 字节尾块），'
+      '可选本地封装：wav → mp3 320k（lameenc）+ ID3v2.3（mutagen）+ ID3v1（手工 128 字节尾块），'
       + '并**自证**解码后的响度/真峰值/时长差与标签回读，而不是跑完就算。'
       + '★ 会提示版权：AI 翻唱的词曲著作权仍属原作者，建议仅作个人试听。',
     parameters: {

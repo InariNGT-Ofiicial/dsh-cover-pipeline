@@ -85,7 +85,14 @@ def main():
         sr = 44100
     inp = job / 'input'; out = job / 'output'
     inp.mkdir(); out.mkdir()
-    sf.write(inp / 'lead.wav', y, sr, subtype='FLOAT')
+    chunking = None
+    windows = None
+    if a.backend == 'baseline' and len(y) > 30 * sr:
+        from long_audio import write_windows, stitch_windows
+        windows = write_windows(y, sr, inp)
+        print(json.dumps({'longAudio': True, 'chunks': len(windows), 'maxRenderSeconds': max((w['renderEnd']-w['renderStart'])/sr for w in windows)}), flush=True)
+    else:
+        sf.write(inp / 'lead.wav', y, sr, subtype='FLOAT')
     source = root / 'batch_infer.py'
     if a.backend == 'baseline':
         argv = [str(source), '-m', str(model), '-i', str(inp), '-o', str(out), '-k', str(a.key), '-id', '1', '-step', str(a.step), '-method', a.method, '-pe', 'rmvpe', '-ts', str(a.t_start), '-v', '0']
@@ -93,6 +100,8 @@ def main():
         # __file__ only redirects the batch implementation's F0 cache into this job.
         exec(compile(source.read_text(encoding='utf-8'), str(source), 'exec'), {'__name__': '__main__', '__file__': str(job / 'batch_infer.py')})
         rendered = out / 'lead.wav'
+        if windows:
+            chunking = stitch_windows(windows, len(y), sr, out, rendered)
     else:
         import numpy as np
         import torch
@@ -110,7 +119,9 @@ def main():
     if not rendered.is_file() or sf.info(rendered).frames <= 0:
         raise RuntimeError('renderer did not produce valid audio')
     os.rename(rendered, output)
-    record = {'status': 'rendered_not_listening_accepted', 'effective': vars(a), 'selection': selection, 'sourceSha256': sha(a.src), 'modelSha256': sha(model), 'configSha256': sha(model.parent / 'config.yaml'), 'rendererSha256': sha(source), 'outputSha256': sha(output), 'argv': argv, 'cacheDirectory': str(job)}
+    record = {'status': 'rendered_not_listening_accepted', 'effective': vars(a), 'selection': selection, 'sourceSha256': sha(a.src), 'modelSha256': sha(model), 'configSha256': sha(model.parent / 'config.yaml'), 'rendererSha256': sha(source), 'outputSha256': sha(output), 'argv': argv, 'cacheDirectory': str(job), 'chunking': chunking}
+    if chunking:
+        record['chunkingScriptSha256'] = sha(Path(__file__).with_name('long_audio.py'))
     with provenance.open('x', encoding='utf-8') as f:
         json.dump(record, f, ensure_ascii=False, indent=2)
     print(json.dumps({'output': str(output), 'provenance': str(provenance), 'selection': selection}))

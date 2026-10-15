@@ -1,6 +1,6 @@
 # dsh-cover-pipeline
 
-面向 DeepSeek Harness（DSH）的本地 AI 翻唱插件，版本 **1.1.0**。通过 11 个工具组织分离、换声、移调、混音和验收。JavaScript 无运行时 npm 依赖；音频处理依赖用户配置的外部 Python 工程、模型和混音脚本。**本仓库不提供模型、歌曲或完整外部流水线。**
+面向 DeepSeek Harness（DSH）的本地 AI 翻唱插件，版本 **1.1.2**。通过 11 个工具组织分离、换声、移调、混音和验收。JavaScript 无运行时 npm 依赖；音频处理依赖用户配置的外部 Python 工程、模型和混音脚本。**本仓库不提供模型、歌曲或完整外部流水线。**
 
 ## 1.1.0 修复
 
@@ -20,7 +20,7 @@
 dsh plugin --profile desktop add <本仓库绝对路径>
 ```
 
-`cordis.patch.yml` 是安装配置，`cordis.dev.yml` 是开发覆盖层。所有路径都是需要替换的示例。`src/config.js` 保留原部署兼容默认值，**不是自动发现，也不保证适用其他机器**。
+`cordis.patch.yml` 是安装配置，`cordis.dev.yml` 是开发覆盖层。所有路径都是需要替换的示例。`src/config.js` 使用通用示例默认值，**不是自动发现，也不保证适用其他机器**。
 
 | 配置 | 应指向 |
 | --- | --- |
@@ -58,12 +58,14 @@ baseline：**kim → karaoke → 只换主唱 → 保留原和声残差 → stan
 
 ```powershell
 npm test
+npm run test:workflow
+python -B test/long-audio-cpu.py
 python -B test/adapter-cpu.py
 python -B test/mix-cpu.py --mix-dir <兼容混音工程绝对路径>
 npm run test:package
 ```
 
-Python CPU 测试需要 numpy/scipy/soundfile；混音测试另需外部混音实现及依赖。`COVER_TEST_TMP` 可指定可写临时目录。CI 仅运行无 GPU 回归。`test:contract` 含本机 doctor，`test:e2e` 只检查指定旧产物，两者均不能冒充新歌全链路验证。已完成的 CPU、真实插件 GPU 集成、用户提供的 DSH 定义匹配及用户听审分别见 [验证说明](docs/validation-1.1.0.md)。
+Python CPU 测试需要 numpy/scipy/soundfile；混音测试另需外部混音实现及依赖。`COVER_TEST_TMP` 可指定可写临时目录。CI 仅运行无 GPU 回归。`test:contract` 需要配置本地环境和测试素材，不能冒充新歌全链路验证；已移除硬编码旧歌产物的 `test:e2e`。已完成的 CPU、真实插件 GPU 集成、用户提供的 DSH 定义匹配及用户听审分别见 [验证说明](docs/validation-1.1.0.md)。
 
 ## 输入源经验（2026-10-15 修正）
 
@@ -78,3 +80,9 @@ Python CPU 测试需要 numpy/scipy/soundfile；混音测试另需外部混音�
 插件代码采用 MIT，不涵盖外部工程、模型权重、音色、词曲或录音使用权。公开宣传前需分别确认许可。插件不解密 DRM、不上传歌曲到第三方、不自动发布视频。
 
 更新使用修复分支和 PR 审查；`scripts/publish.ps1` 是旧手动发布辅助脚本，运行前必须检查目标分支。公开仓库和 npm 包不应包含歌曲、权重、凭据或用户日志。
+
+## 1.1.2 默认流程精简与长音频修复
+
+包含 1.1.1 的长音频分块推理与根因错误传播修复；不改模型、key、采样器或标准混音配方。参考曲等响度 A/B、专项 QC、人工修音/自动化、裁剪与本地封装均为按需步骤，不是默认验收条件。可选脚本缺失不再阻塞默认 doctor；对应工具实际调用仍会检查脚本。非八度移调仍是条件必需步骤。保留输入/模型、时长、新鲜产物、有限值、真峰值、错误传播与用户听审；不承诺商业质量，不自动循环调音。
+
+安装包不包含外部混音/分离/推理工程及权重；配置依赖后才可运行。具体删留理由与验证边界见 [1.1.2 说明](docs/validation-1.1.2.md)。

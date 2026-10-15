@@ -1,8 +1,8 @@
 {
   "name": "dsh-cover-pipeline",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "private": true,
-  "description": "自然语言驱动的 AI 翻唱全流程插件（人声分离 → 换声 → 移调 → 混音 → 验收 → 裁剪 → 发布），零运行时依赖",
+  "description": "DSH local cover pipeline with optional diagnostics and packaging; external audio dependencies required",
   "type": "module",
   "main": "./src/index.js",
   "exports": {
@@ -29,8 +29,8 @@
   "scripts": {
     "test": "node test/regression.mjs",
     "test:contract": "node test/harness.mjs",
-    "test:e2e": "node test/e2e.mjs",
-    "test:package": "node test/package.mjs"
+    "test:package": "node test/package.mjs",
+    "test:workflow": "node test/workflow.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.1"

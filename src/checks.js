@@ -69,6 +69,18 @@ export async function diskFree(p) {
   }
 }
 
+export function optionalScriptCheck(cfg) {
+  const missingScripts = Object.entries(SCRIPTS)
+    .filter(([, f]) => !existsSync(join(cfg.probeDir, f)))
+    .map(([k, f]) => `${k}(${f})`);
+  return {
+    name: `可选/条件工具脚本（${Object.keys(SCRIPTS).length} 个）`, level: 'info',
+    ok: missingScripts.length === 0,
+    detail: missingScripts.length ? `缺 ${missingScripts.length} 个: ${missingScripts.join(', ')}` : '全部就位',
+    fix: missingScripts.length ? '仅在调用相应 QC/移调/裁剪/封装工具时提供该脚本；不阻塞 key=0 默认流程' : '',
+  };
+}
+
 /** 完整体检。返回 {ok, errors, warnings, checks[]} */
 export async function doctor(cfg) {
   const checks = [];
@@ -80,8 +92,8 @@ export async function doctor(cfg) {
 
   // ── 目录 ────────────────────────────────────────────────────────────
   for (const [name, p] of [
-    ['工程根 pipelineRoot', cfg.pipelineRoot],
-    ['脚本目录 probeDir', cfg.probeDir],
+
+
     ['混音工程 mixDir', cfg.mixDir],
     ['MSST 目录 msstDir', cfg.msstDir],
     ['DDSP 目录 ddspDir', cfg.ddspDir],
@@ -152,7 +164,7 @@ export async function doctor(cfg) {
     ['MSST inference', join(cfg.msstDir, 'inference.py')],
     ['mix implementation', join(cfg.mixDir, 'mix_master.py')],
     ['verify implementation', join(cfg.mixDir, 'verify_mix.py')],
-    ...['convert.py', 'guided_core.py', 'mix.py', 'validate_model.py'].map(f => [`plugin adapter ${f}`, runtimePath(f)]),
+    ...['convert.py', 'long_audio.py', 'guided_core.py', 'mix.py', 'validate_model.py'].map(f => [`plugin adapter ${f}`, runtimePath(f)]),
   ]) checks.push(fileRow(name, file));
   if (existsSync(cfg.ddspEnv) && existsSync(cfg.voiceModel)) {
     const r = await run(cfg.ddspEnv, ['-B', runtimePath('validate_model.py'), '--model', cfg.voiceModel, '--ddsp-dir', cfg.ddspDir], { timeoutMs: 30000 });
@@ -188,21 +200,13 @@ export async function doctor(cfg) {
     }
   } else {
     checks.push({
-      name: '音质库目录', level: 'warn', ok: false, detail: `不存在: ${qlib}`,
+      name: '可选音质库目录', level: 'info', ok: false, detail: `不存在: ${qlib}`,
       fix: 'pip install mosqito mutagen --no-deps --target <该目录>；缺了则 p95/p97 降级（不影响出成品）',
     });
   }
 
   // ── 流水线脚本 ──────────────────────────────────────────────────────
-  const missingScripts = Object.entries(SCRIPTS)
-    .filter(([, f]) => !existsSync(join(cfg.probeDir, f)))
-    .map(([k, f]) => `${k}(${f})`);
-  checks.push({
-    name: `流水线脚本（${Object.keys(SCRIPTS).length} 个）`, level: 'error',
-    ok: missingScripts.length === 0,
-    detail: missingScripts.length ? `缺 ${missingScripts.length} 个: ${missingScripts.join(', ')}` : '全部就位',
-    fix: missingScripts.length ? '这些脚本是本项目自研的，需随工程一起拷贝到 probeDir' : '',
-  });
+  checks.push(optionalScriptCheck(cfg));
 
   // ── 磁盘 ────────────────────────────────────────────────────────────
   const d = await diskFree(cfg.probeDir);

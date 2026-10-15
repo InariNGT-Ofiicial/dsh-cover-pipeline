@@ -1,7 +1,7 @@
 /**
  * 配置：内置默认值 + 合并/归一化。
  *
- * 设计原则：**默认值直接对准本机真实布局**，开箱即用；
+ * 设计原则：**默认值是通用示例**，安装前配置实际路径；
  * 任何一项都可以被 cordis config 覆盖（见 cordis.patch.yml）。
  * 所有路径统一成**正斜杠绝对路径**，避免 Windows 反斜杠在 JSON/日志里的转义问题。
  */
@@ -12,22 +12,22 @@ export const runtimePath = name => fileURLToPath(new URL('../runtime/' + name, i
 /** 机器相关的默认值。换机器时改这里，或在 cordis.patch.yml 里覆盖。 */
 export const DEFAULTS = {
   // ── 目录 ──────────────────────────────────────────────────────────────
-  songRoot: 'D:/AI-Song',
-  pipelineRoot: 'D:/AI-Song/_pipeline_bqll',
-  probeDir: 'D:/AI-Song/_pipeline_bqll/_probe',
-  mixDir: 'D:/AI-Song/_pipeline_mingyue',
+  songRoot: 'C:/AudioWork',
+  pipelineRoot: 'C:/AudioWork/pipeline',
+  probeDir: 'C:/AudioWork/pipeline/_probe',
+  mixDir: 'C:/AudioTools/mix',
 
   // ── 两套 Python 环境 ──────────────────────────────────────────────────
-  msstDir: 'D:/AI-Song/01_人声分离_MSST-GUI',
-  msstEnv: 'D:/AI-Song/01_人声分离_MSST-GUI/env/python.exe',
-  ddspDir: 'D:/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2',
-  ddspEnv: 'D:/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/env/python.exe',
+  msstDir: 'C:/AudioTools/MSST',
+  msstEnv: 'C:/AudioTools/MSST/env/python.exe',
+  ddspDir: 'C:/AudioTools/DDSP',
+  ddspEnv: 'C:/AudioTools/DDSP/env/python.exe',
 
   // ── 其它外部件 ────────────────────────────────────────────────────────
-  ffmpeg: 'D:/AI-Song/01_人声分离_MSST-GUI/env/ffmpeg.exe',
+  ffmpeg: 'C:/AudioTools/MSST/env/ffmpeg.exe',
   voiceModel:
-    'D:/AI-Song/03_音色模型_MYGO-AveMujica/祥子_步数20000/exp/reflow-test/model_20000.pt',
-  qualityLibDir: 'D:/AI-Song/_pipeline_bqll/_probe/_sq',
+    'C:/AudioModels/voice/model.pt',
+  qualityLibDir: 'C:/AudioWork/pipeline/_probe/_sq',
 
   // ── 业务默认值 ────────────────────────────────────────────────────────
   targetLufs: -14.0,
@@ -52,18 +52,12 @@ export const DDSP_ASSETS = {
 /** 本插件依赖的流水线脚本（都在 probeDir 下） */
 export const SCRIPTS = {
   shiftUniform: 'p55_shift_uniform.py',
-  voicedCheck: 'p56_check_guided.py',
   crackScan: 'p74_scan_crack.py',
-  crackFix: 'p78_lead_fix3.py',
-  instProfile: 'p85_inst_profile.py',
-  shiftVerify: 'p86_shift_verify.py',
   convCheck: 'p87_conv_check.py',
   sectionCentroid: 'p89_section_centroid.py',
-  abGeneric: 'p90_ab_generic.py',
   sourceSurvey: 'p91_source_survey.py',
   chorusCut: 'p93_chorus_cut.py',
   brightness: 'p95_brightness.py',
-  leadEqProbe: 'p96_lead_eq_probe.py',
   releaseCut: 'p97_release_cut.py',
 };
 

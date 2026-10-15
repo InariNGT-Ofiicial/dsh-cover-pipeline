@@ -107,9 +107,9 @@ for (const [n, d] of registry) {
 
 // ── 输出契约：render 必须返回 content blocks ────────────────────────────
 console.log('\n[4] 真机执行与输出契约');
-const CFG_LEAD = 'D:/AI-Song/_pipeline_bqll/02_conv/in_lead/lead.wav';
-const CFG_HARM = 'D:/AI-Song/_pipeline_bqll/02_conv/in_harm/harm.wav';
-const CFG_INST = 'D:/AI-Song/_pipeline_bqll/01_sep/step1_kim/bqll/instrumental.wav';
+const CFG_LEAD = 'C:/AudioWork/fixtures/lead.wav';
+const CFG_HARM = 'C:/AudioWork/fixtures/harm.wav';
+const CFG_INST = 'C:/AudioWork/fixtures/instrumental.wav';
 
 async function execRaw(n, args) {
   const d = registry.get(n);
@@ -156,7 +156,7 @@ await check('cover_doctor（实执行，含两套 Python 探测）', async () =>
 
 console.log('\n[5] 其余工具 dry-run（回显命令行，不执行）');
 const dryCases = [
-  ['cover_separate', { inputFolder: 'D:/AI-Song/_pipeline_bqll/00_src', outDir: 'D:/tmp/sep', dryRun: true }],
+  ['cover_separate', { inputFolder: 'C:/AudioWork/fixtures/00_src', outDir: 'D:/tmp/sep', dryRun: true }],
   ['cover_shift', { key: 5, outDir: 'D:/tmp/f5', instSrc: CFG_INST, harmSrc: CFG_HARM, dryRun: true }],
   ['cover_convert', { src: CFG_LEAD, key: 5, outDir: 'D:/tmp/f5', dryRun: true }],
   ['cover_mix', { inst: CFG_INST, lead: CFG_LEAD, harm: CFG_LEAD, out: 'D:/tmp/m.wav', dryRun: true }],

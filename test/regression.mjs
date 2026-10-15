@@ -102,5 +102,22 @@ await test('plugin schemas expose new routing controls and strict harmonic input
   const schema=registry.get('cover_convert').output.schema;
   for(const key of ['artifactsOk','technicalChecksPassed','manifestPath'])assert.ok(schema.properties[key]);
 });
+await test('nonzero CUDA failure retains root cause above missing output', async () => {
+  const a={src:file('input/new-song.wav'),key:0,outDir:file('oom')};
+  const r=await runStage(cfg,'convert',a,{run:async()=>({...ok,ok:false,code:1,stderr:'Traceback:\n torch.AcceleratorError: CUDA error: out of memory\nCUDA kernel errors might be asynchronously reported'})});
+  assert.equal(r.ok,false);assert.match(r.error,/exit 1.*CUDA error: out of memory/);assert.match(r.error,/Missing output/);
+});
+await test('argparse root cause and timeout retain useful top-level errors', async () => {
+  const a={src:file('input/new-song.wav'),key:0,outDir:file('cause')};
+  const r=await runStage(cfg,'convert',a,{run:async()=>({...ok,ok:false,code:2,stderr:'usage: adapter\nadapter: error: tracks must be aligned within 30ms'})});
+  assert.match(r.error,/tracks must be aligned/);
+  const t=await runStage(cfg,'convert',{...a,outDir:file('timeout')},{run:async()=>({...ok,ok:false,timedOut:true,code:null})});assert.match(t.error,/timed out/);
+});
+await test('secondary separation error reaches top level', async () => {
+  const r=await runSeparation(cfg,{inputFolder:file('input'),outDir:file('secondary-fail')},{run:async(_cmd,args)=>{
+    if(flag(args,'--model_type')==='bs_roformer')return {...ok,ok:false,code:1,stderr:'RuntimeError: secondary fixture failure'};
+    wav(file('secondary-fail/new-song/vocals.wav'));wav(file('secondary-fail/new-song/instrumental.wav'));return ok;
+  }});assert.equal(r.ok,false);assert.match(r.error,/secondary fixture failure/);
+});
 console.log(JSON.stringify({scope:'CPU mocks only; no inference/no listening test',root,passed:results.filter(x=>x.ok).length,total:results.length,results},null,2));
 process.exitCode=results.some(x=>!x.ok)?1:0;
