@@ -9,7 +9,7 @@
  *   · `expects` 是"跑完必须存在的产物"，工具据此判定成功（**不靠退出码**）；
  *   · 返回值可直接 dry-run（把命令行回给人看）。
  */
-import { DDSP_ASSETS, MSST_ASSETS, join, scriptPath } from './config.js';
+import { DDSP_ASSETS, MSST_ASSETS, join, scriptPath, runtimePath } from './config.js';
 
 /** 只推入有值的参数（避免 `--ref ''` 这种空参数） */
 function push(args, pairs) {
@@ -79,40 +79,38 @@ export const STAGES = {
     expects: [join(a.outDir, 'inst.wav'), join(a.outDir, 'harm.wav')],
   }),
 
-  /** S4 换声推理（引导式：uv 抑制 + crepe 独立判据） */
-  convert: (cfg, a) => ({
-    label: `S4 换声推理 k=${keyTag(a.key)}（引导式）`,
-    cmd: cfg.ddspEnv,
-    cwd: cfg.ddspDir,
-    args: push([scriptPath(cfg, 'convert'), '--mode', a.mode ?? 'full'], [
-      ['--src', a.src],
-      ['--outdir', a.outDir],
-      ['--uniform', a.key],
-      ['--amp', a.amp ?? 0.5],
-      ['--nsfuv', a.nsfuv ?? 1],
-      ['--conf-hi', a.confHi ?? 0.4],
-      ['--conf-lo', a.confLo ?? 0.15],
-      ['--nsf-thred', a.nsfThred ?? 0.4],
-      ['--crepe-uv', a.crepeUv ?? 1],
-      ['--crepe-th', a.crepeTh ?? 0.35],
-      ['--model', a.model],
-    ]),
-    expects: [],   // 产物名含 K，工具跑完扫 outdir 里最新的 lead_uniform_k*.wav
-  }),
+  /** S4 task-local generic pilot/full adapter; no song-specific windows. */
+  convert: (cfg, a) => {
+    const output = join(a.outDir, `lead_${a.mode ?? 'pilot'}_k${keyTag(a.key)}.wav`);
+    return {
+      label: `S4 ${a.backend ?? 'baseline'} ${a.mode ?? 'pilot'} k=${keyTag(a.key)}`,
+      cmd: cfg.ddspEnv, cwd: cfg.ddspDir,
+      args: push([runtimePath('convert.py'), '--src', a.src, '--out', output,
+        '--model', a.model ?? cfg.voiceModel, '--ddsp-dir', cfg.ddspDir,
+        '--backend', a.backend ?? 'baseline', '--mode', a.mode ?? 'pilot', '--key', String(a.key)], [
+        ['--start', a.start ?? 0], ['--duration', a.duration ?? 25],
+        ['--step', a.step ?? 50], ['--method', a.method ?? 'euler'], ['--t-start', a.tStart ?? 0.7],
+        ['--amp', a.amp ?? 0.5], ['--nsfuv', a.nsfuv ?? 1], ['--conf-hi', a.confHi ?? 0.4],
+        ['--conf-lo', a.confLo ?? 0.15], ['--nsf-thred', a.nsfThred ?? 0.4],
+        ['--crepe-uv', a.crepeUv ?? 1], ['--crepe-th', a.crepeTh ?? 0.35],
+      ]),
+      expects: [output, output + '.conversion.json'],
+    };
+  },
 
   /** S6 混音 + 母带（pedalboard 全链，输出 −14 LUFS） */
   mix: (cfg, a) => ({
     label: 'S6 混音 + 母带',
     cmd: cfg.msstEnv,
     cwd: cfg.mixDir,
-    args: push(['mix_master.py'], [
+    args: push([runtimePath('mix.py'), '--mix-dir', cfg.mixDir], [
       ['--out', a.out],
       ['--profile', a.profile ?? 'standard'],
-      ['--target', a.targetLufs],
+      ['--target', a.targetLufs ?? cfg.targetLufs],
       ['--p', a.overrides ?? []],
       ['--set', [`inst=${a.inst}`, `lead=${a.lead}`, `harm=${a.harm}`]],
     ]),
-    expects: [a.out],
+    expects: [a.out, a.out + '.mix.json'],
   }),
 
   /** S7 五门验收（响度 / 真峰值 / 波峰因数 / LRA / 立体声） */
@@ -122,10 +120,10 @@ export const STAGES = {
     cwd: cfg.mixDir,
     args: push(['verify_mix.py', a.wav], [
       ['--ref', a.ref],
-      ['--target-lufs', a.targetLufs],
-      ['--json', a.json],
+      ['--target-lufs', a.targetLufs ?? cfg.targetLufs],
+      ['--json', a.json ?? `${a.wav}.verify.json`],
     ]),
-    expects: a.json ? [a.json] : [],
+    expects: [a.json ?? `${a.wav}.verify.json`],
   }),
 
   /** S8 副歌裁剪（能量极小切口 + 淡入淡出 + 重新定响度 + 接缝自证） */
@@ -140,7 +138,7 @@ export const STAGES = {
       ['--snap', a.snap],
       ['--fade', a.fade],
       ['--gap', a.gap],
-      ['--target', a.targetLufs],
+      ['--target', a.targetLufs ?? cfg.targetLufs],
       ['--no-normalize', a.noNormalize === true],
     ]),
     expects: [a.out],
@@ -263,12 +261,12 @@ export const FLOW = [
   { stage: 'S0', name: '意图解析', tool: 'cover_plan',
     detail: '自然语言 → {歌曲源, 目标音色, 偏好(保人声/保伴奏/保时长), 交付形态}；不确定的项**必须问**，不要猜。' },
   { stage: 'S1', name: '人声分离', tool: 'cover_separate', detail: 'MSST MelBandRoformer-kim → vocals / instrumental。' },
-  { stage: 'S2', name: '主唱/和声分离', tool: 'cover_separate(karaoke=true)', detail: '可选；决定 D2。' },
+  { stage: 'S2', name: '主唱/和声分离', tool: 'cover_separate(karaoke=true)', detail: '默认执行；保留原和声，不送入换声器。显式false才跳过。' },
   { stage: 'S3', name: '音区体检与 K 决策', tool: 'cover_qc(qcSource/qcSection)', detail: 'D1 + D3。' },
-  { stage: 'S4', name: '换声推理', tool: 'cover_convert', detail: '引导式：uv 抑制 + crepe 独立判据。' },
+  { stage: 'S4', name: '换声推理', tool: 'cover_convert', detail: '默认baseline batch；pilot显式起点/时长/key，guided为需单独听审的实验选项。' },
   { stage: 'S5', name: '伴奏移调', tool: 'cover_shift', detail: 'D4；非八度 K 必须做，八度 K 可跳过。' },
   { stage: 'S6', name: '混音 + 母带', tool: 'cover_mix', detail: '标准档 / 低频补偿档；★ 低频档会顺手削清亮（见 README）。' },
-  { stage: 'S7', name: '五门验收', tool: 'cover_verify', detail: '五门全过才算完成态。' },
+  { stage: 'S7', name: '五门验收', tool: 'cover_verify', detail: '技术门只报告对应指标；还必须由用户确认听感，不能等同音质通过。' },
   { stage: 'S8', name: '缺陷修复（可选）', tool: 'cover_qc(qcCrack) + p78', detail: 'D5；只修落在交付段落内的。' },
   { stage: 'S9', name: '裁剪 / 发布', tool: 'cover_cut → cover_release', detail: '裁剪可消掉"伴奏移调"的必要性（副歌自带高音区）。' },
 ];
@@ -277,7 +275,9 @@ export const WORKFLOW_RULES = [
   '★ **先 doctor 再动手**：环境不过就明确报告，不要带着坏环境跑几小时。',
   '★ **每个决策点都要量，不许猜**：量不出来的（如"唱法合不合适"）必须交给主人用耳朵判，并明确说"我量不了"。',
   '★ **成功以产物为准**：命令退出码为 0 不等于成功 —— 必须检查 expects 里的文件确实生成了。',
-  '★ **先跑 pilot 再跑 full**：换声先用小段试参数，再整曲。',
+  '★ **固定recipe**：二级分离→仅主唱baseline换声→原和声→cover_mix完整母带；不能静默退化为两轨相加+loudnorm。',
+  '★ **先跑 pilot 再跑 full**：同一key/backend/参数试听并取得用户确认；先裁完整混音输入到同一时间段再分离，避免pilot主唱与整曲伴奏错位。',
+  '★ 插件不可用时明确报告fallback；手工执行必须逐项保留recipe与provenance，不能冒充插件已验证。',
   '★ **响度对齐后才做听感对比**：等响（同一 LUFS）是 A/B 的前提，否则比的是音量不是音质。',
   '★ **凡是"变薄/变闷/变亮"这类结论，必须给同一段的数值对照**，不能给跨段的比例。',
 ];

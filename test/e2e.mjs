@@ -11,6 +11,7 @@
  * 用法: node test/e2e.mjs
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as plugin from '../src/index.js';
 
 const results = [];
@@ -39,20 +40,22 @@ const DELIVER = 'D:/AI-Song/_交付/八千里路/成品_副歌裁剪/01_最终�
 const REF_LEAD = 'D:/AI-Song/_pipeline_bqll/02_conv/in_lead/lead.wav';
 const K0_LEAD = 'D:/AI-Song/_pipeline_bqll/_probe/final0/lead_uniform_k+0.wav';
 
-console.log('== dsh-cover-pipeline 真机端到端 ==\n');
+console.log('== dsh-cover-pipeline 旧产物技术检查（不是新歌全链路E2E） ==\n');
 
 await step('cover_verify 实操五门验收（对最终交付件）', async () => {
   const v = await call('cover_verify', {
     wav: DELIVER,
-    json: 'D:/AI-Song/_pipeline_bqll/_probe/_plugin_e2e/verify.json',
+    json: `D:/AI-Song/_pipeline_bqll/_probe/_plugin_e2e/verify-${Date.now()}.json`,
   });
   assert.equal(v.phase, 'executed', `未进入执行相: ${v.error ?? ''}`);
   assert.equal(v.exitCode, 0, `exit=${v.exitCode}  stderr=${(v.stderr || '').slice(-400)}`);
   assert.ok((v.stdout || '').includes('[PASS]'), '输出里没有 [PASS] 行，验收未真正执行');
   assert.equal(v.artifactsOk, true, `产物校验未过: ${JSON.stringify(v.artifacts)}`);
   const pass = (v.stdout.match(/\[PASS\]/g) || []).length;
-  const fail = (v.stdout.match(/\[FAIL\]/g) || []).length;
-  assert.equal(fail, 0, `出现 ${fail} 个 FAIL`);
+  const report = JSON.parse(readFileSync(v.artifacts[0].path, 'utf8'));
+  const fail = report.checks.filter(c => c.pass !== true).length;
+  assert.equal(v.technicalChecksPassed, true);
+  assert.equal(fail, 0, `出现 ${fail} 个 WARN/FAIL`);
   return `五门 PASS ${pass} 项 / FAIL ${fail} 项 ｜ JSON 已落盘`;
 });
 

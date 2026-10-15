@@ -1,6 +1,6 @@
 {
   "name": "dsh-cover-pipeline",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "自然语言驱动的 AI 翻唱全流程插件（人声分离 → 换声 → 移调 → 混音 → 验收 → 裁剪 → 发布），零运行时依赖",
   "type": "module",
@@ -8,7 +8,15 @@
   "exports": {
     ".": "./src/index.js"
   },
-  "keywords": ["deepseek-harness", "dsh", "cordis", "plugin", "ai-cover", "ddsp", "msst"],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "ai-cover",
+    "ddsp",
+    "msst"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=18"
@@ -19,7 +27,9 @@
     }
   },
   "scripts": {
-    "test": "node test/harness.mjs"
+    "test": "node test/regression.mjs",
+    "test:contract": "node test/harness.mjs",
+    "test:e2e": "node test/e2e.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.1"
@@ -28,5 +38,14 @@
     "@deepseek-ai/cordis": {
       "optional": true
     }
-  }
+  },
+  "files": [
+    "src/",
+    "runtime/",
+    "cordis.patch.yml",
+    "cordis.dev.yml",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ]
 }

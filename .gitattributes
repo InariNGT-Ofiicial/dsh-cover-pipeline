@@ -7,6 +7,7 @@
 # 文本文件统一 LF；但 .cmd/.ps1 保持 CRLF（Windows 原生脚本习惯）
 *.js   text eol=lf
 *.mjs  text eol=lf
+*.py   text eol=lf
 *.json text eol=lf
 *.yml  text eol=lf
 *.yaml text eol=lf

@@ -6,6 +6,8 @@
  * 所有路径统一成**正斜杠绝对路径**，避免 Windows 反斜杠在 JSON/日志里的转义问题。
  */
 import { isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+export const runtimePath = name => fileURLToPath(new URL('../runtime/' + name, import.meta.url));
 
 /** 机器相关的默认值。换机器时改这里，或在 cordis.patch.yml 里覆盖。 */
 export const DEFAULTS = {
@@ -49,7 +51,6 @@ export const DDSP_ASSETS = {
 
 /** 本插件依赖的流水线脚本（都在 probeDir 下） */
 export const SCRIPTS = {
-  convert: 'p51_guided.py',
   shiftUniform: 'p55_shift_uniform.py',
   voicedCheck: 'p56_check_guided.py',
   crackScan: 'p74_scan_crack.py',
