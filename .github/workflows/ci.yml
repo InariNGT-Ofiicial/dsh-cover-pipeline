@@ -22,4 +22,4 @@ jobs:
       - run: npm test
       - run: python -B test/adapter-cpu.py
       - run: python -m compileall -q runtime test
-      - run: npm pack --dry-run
+      - run: npm run test:package

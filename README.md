@@ -60,7 +60,7 @@ baseline：**kim → karaoke → 只换主唱 → 保留原和声残差 → stan
 npm test
 python -B test/adapter-cpu.py
 python -B test/mix-cpu.py --mix-dir <兼容混音工程绝对路径>
-npm pack --dry-run
+npm run test:package
 ```
 
 Python CPU 测试需要 numpy/scipy/soundfile；混音测试另需外部混音实现及依赖。`COVER_TEST_TMP` 可指定可写临时目录。CI 仅运行无 GPU 回归。`test:contract` 含本机 doctor，`test:e2e` 只检查指定旧产物，两者均不能冒充新歌全链路验证。已完成的 CPU、真实插件 GPU 集成、用户提供的 DSH 定义匹配及用户听审分别见 [验证说明](docs/validation-1.1.0.md)。

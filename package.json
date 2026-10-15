@@ -29,7 +29,8 @@
   "scripts": {
     "test": "node test/regression.mjs",
     "test:contract": "node test/harness.mjs",
-    "test:e2e": "node test/e2e.mjs"
+    "test:e2e": "node test/e2e.mjs",
+    "test:package": "node test/package.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.1"
@@ -40,11 +41,11 @@
     }
   },
   "files": [
-    "src/",
-    "runtime/",
+    "src/*.js",
+    "runtime/*.py",
     "cordis.patch.yml",
     "cordis.dev.yml",
-    "docs/",
+    "docs/*.md",
     "README.md",
     "LICENSE"
   ]
