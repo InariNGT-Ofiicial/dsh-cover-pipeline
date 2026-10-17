@@ -1,0 +1,179 @@
+{
+  "schema": 1,
+  "updated": "2026-10-17",
+  "note": "材料清单：代码/脚本随仓库分发；大工程与权重不放进 git（体积 + 第三方许可）。本文件记录每一件的落位、大小与 sha256，供 verify-materials.mjs 校验。",
+  "capabilities": {
+    "bundledScripts": 15,
+    "bundledBreakdown": "5 runtime adapter + 8 probe(QC/移调/裁剪/封装) + 2 mix/verify",
+    "voiceModels": 8
+  },
+  "packs": [
+    {
+      "id": "msst",
+      "name": "MSST-GUI 人声分离整合包",
+      "kind": "baidu-pan",
+      "url": "https://pan.baidu.com/s/1gLO9U5jcfrtO3WJmAAyo1Q?pwd=u3r2",
+      "code": "u3r2",
+      "target": "01_人声分离_MSST-GUI",
+      "provides": [
+        "inference.py",
+        "env/python.exe",
+        "configs/config_vocals_mel_band_roformer_kim.yaml",
+        "configs/config_karaoke_frazer_becruily.yaml"
+      ],
+      "note": "整合包作者 @领航员未鸟；含 43 个分离模型与 50 系可用 env。解压后目录名保持 01_人声分离_MSST-GUI。"
+    },
+    {
+      "id": "ddsp",
+      "name": "DDSP-SVC 6.2 整合包（含 50 系 env）",
+      "kind": "baidu-pan",
+      "url": "https://pan.baidu.com/s/16LUHAc40KsCI449TbPQ29Q?pwd=j44k",
+      "code": "j44k",
+      "target": "02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2",
+      "provides": [
+        "batch_infer.py",
+        "env/python.exe",
+        "pretrain/contentvec/checkpoint_best_legacy_500.pt",
+        "pretrain/pc_nsf_hifigan_44.1k_hop512_128bin_2025.02/model.ckpt"
+      ],
+      "note": "必须用 6.2 系代码；目标音色模型标注「仅适配 DDSP6.2」。"
+    },
+    {
+      "id": "voices-8",
+      "name": "8 人音色模型包（MyGO / Ave Mujica）",
+      "kind": "baidu-pan",
+      "url": "https://pan.baidu.com/s/1GJBrq3287GA_KKwNudFDpw?pwd=2aj9",
+      "code": "2aj9",
+      "target": "03_音色模型_MYGO-AveMujica",
+      "provides": [
+        "高松灯_步数30000",
+        "初华_步数28000",
+        "祥子_步数20000",
+        "立希_步数20000",
+        "若叶睦_步数20000",
+        "喵梦_步数14000",
+        "素世_步数14000",
+        "爱音_步数12000"
+      ],
+      "note": "版权与授权见包内说明；本仓库不再分发权重，只记录落位与哈希。"
+    }
+  ],
+  "voiceModels": [
+    {
+      "id": "uika",
+      "name": "初华",
+      "steps": 28000,
+      "file": "model_28000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "5c4957f2f6a3780f96b33eb4c087c1e46ac86aa124351b45770bb1976d399a8c",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/初华_步数28000/exp/reflow-test"
+    },
+    {
+      "id": "nyamu",
+      "name": "喵梦",
+      "steps": 14000,
+      "file": "model_14000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "b8aba6b8622bc22f5734f5280193880628e4e12c7e853e8771446d29641bb4cd",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/喵梦_步数14000/exp/reflow-test"
+    },
+    {
+      "id": "anon",
+      "name": "爱音",
+      "steps": 12000,
+      "file": "model_12000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "af40a5c7c94317867e65a38e09b9f6285dd32cf0346e3bf7e1768048cb60f370",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/爱音_步数12000/exp A/reflow-test"
+    },
+    {
+      "id": "sakiko",
+      "name": "祥子",
+      "steps": 20000,
+      "default": true,
+      "file": "model_20000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "05080eaffde64345d081b1d3cadff19fff8d2a9ad31b46f228a57d69d7b19fa3",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/祥子_步数20000/exp/reflow-test"
+    },
+    {
+      "id": "taki",
+      "name": "立希",
+      "steps": 20000,
+      "file": "model_20000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "909e49dd89a0ff2580b7190a2af4fe9608f731fdd0309755dcd870aba6cd0c48",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/立希_步数20000/exp/reflow-test"
+    },
+    {
+      "id": "soyo",
+      "name": "素世",
+      "steps": 14000,
+      "file": "model_14000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "dd711c2548bdab3caddb302bce64d5eb3480ce46b2701bea41cc4ee93ae67f43",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/素世_步数14000/exp/reflow-test"
+    },
+    {
+      "id": "mutsumi",
+      "name": "若叶睦",
+      "steps": 20000,
+      "file": "model_20000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "645d997bfc4807e19a2c953f5b1db032f80627b8019289a3eab52a9c87017997",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/若叶睦_步数20000/exp/reflow-test"
+    },
+    {
+      "id": "tomori",
+      "name": "高松灯",
+      "steps": 30000,
+      "file": "model_30000.pt",
+      "sizeBytes": 280285658,
+      "sha256": "a448f4a3fd44b4fbd53132efe589b0cf8b072fa63a42061200f428602a2ad684",
+      "configSha256": "25a8b50464cee2d34f9c2d9e1ea0dad6937216cd28511a3982ff6da3690e749b",
+      "target": "03_音色模型_MYGO-AveMujica/高松灯_步数30000/exp/reflow-test"
+    }
+  ],
+  "pretrains": [
+    {
+      "id": "kim",
+      "name": "MSST MelBandRoformer kim 人声/伴奏",
+      "sizeBytes": 913106900,
+      "sha256": "87201f4d31afb5bc79993230fc49446918425574db48c01c405e44f365c7559e",
+      "target": "01_人声分离_MSST-GUI/pretrain/MelBandRoformer_kim.ckpt",
+      "url": "https://huggingface.co/KimberleyJSN/melbandroformer"
+    },
+    {
+      "id": "karaoke",
+      "name": "MSST BS-Roformer karaoke 主唱/和声",
+      "sizeBytes": 204436907,
+      "sha256": "eb90ee24c1154d83fbcfd27e96182f19e061557cc6e4746953125e08c29389f9",
+      "target": "01_人声分离_MSST-GUI/pretrain/bs_roformer_karaoke_frazer_becruily.ckpt",
+      "url": "https://huggingface.co/becruily/bs-roformer-karaoke"
+    },
+    {
+      "id": "contentvec",
+      "name": "ContentVec 旧 fairseq 编码器",
+      "sizeBytes": 189507909,
+      "sha256": "f54b40fd2802423a5643779c4861af1e9ee9c1564dc9d32f54f20b5ffba7db96",
+      "target": "02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/pretrain/contentvec/checkpoint_best_legacy_500.pt",
+      "url": "https://github.com/auspicious3000/contentvec"
+    },
+    {
+      "id": "hifigan",
+      "name": "PC-NSF-HiFiGAN 44.1k 声码器",
+      "sizeBytes": 56663267,
+      "sha256": "d6dd28909d2a1a2dcf74b3e3aa0b82b48695b87979fdf41561940aeecd85c67f",
+      "target": "02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/pretrain/pc_nsf_hifigan_44.1k_hop512_128bin_2025.02/model.ckpt",
+      "url": "https://github.com/openvpi/vocoders/releases/tag/pc-nsf-hifigan-44.1k-hop512-128bin-2025.02",
+      "license": "CC BY-NC-SA 4.0（再分发需读包内 notice）"
+    }
+  ]
+}

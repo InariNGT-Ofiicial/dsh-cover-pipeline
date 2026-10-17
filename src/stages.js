@@ -9,7 +9,7 @@
  *   · `expects` 是"跑完必须存在的产物"，工具据此判定成功（**不靠退出码**）；
  *   · 返回值可直接 dry-run（把命令行回给人看）。
  */
-import { DDSP_ASSETS, MSST_ASSETS, join, scriptPath } from './config.js';
+import { DDSP_ASSETS, MSST_ASSETS, join, scriptPath, mixScriptPath, runtimePath } from './config.js';
 
 /** 只推入有值的参数（避免 `--ref ''` 这种空参数） */
 function push(args, pairs) {
@@ -69,7 +69,8 @@ export const STAGES = {
   shift: (cfg, a) => ({
     label: `S3 伴奏+和声统一移调 k=${keyTag(a.key)}`,
     cmd: cfg.msstEnv,
-    cwd: cfg.probeDir,
+    cwd: cfg.scriptsDir,
+    env: { COVER_PIPELINE_ROOT: cfg.pipelineRoot, COVER_PROBE_DIR: cfg.probeDir },
     args: push([scriptPath(cfg, 'shiftUniform'), String(a.key)], [
       ['--outdir', a.outDir],
       ['--inst-src', a.instSrc],
@@ -79,60 +80,60 @@ export const STAGES = {
     expects: [join(a.outDir, 'inst.wav'), join(a.outDir, 'harm.wav')],
   }),
 
-  /** S4 换声推理（引导式：uv 抑制 + crepe 独立判据） */
-  convert: (cfg, a) => ({
-    label: `S4 换声推理 k=${keyTag(a.key)}（引导式）`,
-    cmd: cfg.ddspEnv,
-    cwd: cfg.ddspDir,
-    args: push([scriptPath(cfg, 'convert'), '--mode', a.mode ?? 'full'], [
-      ['--src', a.src],
-      ['--outdir', a.outDir],
-      ['--uniform', a.key],
-      ['--amp', a.amp ?? 0.5],
-      ['--nsfuv', a.nsfuv ?? 1],
-      ['--conf-hi', a.confHi ?? 0.4],
-      ['--conf-lo', a.confLo ?? 0.15],
-      ['--nsf-thred', a.nsfThred ?? 0.4],
-      ['--crepe-uv', a.crepeUv ?? 1],
-      ['--crepe-th', a.crepeTh ?? 0.35],
-      ['--model', a.model],
-    ]),
-    expects: [],   // 产物名含 K，工具跑完扫 outdir 里最新的 lead_uniform_k*.wav
-  }),
+  /** S4 task-local generic pilot/full adapter; no song-specific windows. */
+  convert: (cfg, a) => {
+    const output = join(a.outDir, `lead_${a.mode ?? 'pilot'}_k${keyTag(a.key)}.wav`);
+    return {
+      label: `S4 ${a.backend ?? 'baseline'} ${a.mode ?? 'pilot'} k=${keyTag(a.key)}`,
+      cmd: cfg.ddspEnv, cwd: cfg.ddspDir,
+      args: push([runtimePath('convert.py'), '--src', a.src, '--out', output,
+        '--model', a.model ?? cfg.voiceModel, '--ddsp-dir', cfg.ddspDir,
+        '--backend', a.backend ?? 'baseline', '--mode', a.mode ?? 'pilot', '--key', String(a.key)], [
+        ['--start', a.start ?? 0], ['--duration', a.duration ?? 25],
+        ['--step', a.step ?? 50], ['--method', a.method ?? 'euler'], ['--t-start', a.tStart ?? 0.7],
+        ['--amp', a.amp ?? 0.5], ['--nsfuv', a.nsfuv ?? 1], ['--conf-hi', a.confHi ?? 0.4],
+        ['--conf-lo', a.confLo ?? 0.15], ['--nsf-thred', a.nsfThred ?? 0.4],
+        ['--crepe-uv', a.crepeUv ?? 1], ['--crepe-th', a.crepeTh ?? 0.35],
+      ]),
+      expects: [output, output + '.conversion.json'],
+    };
+  },
 
   /** S6 混音 + 母带（pedalboard 全链，输出 −14 LUFS） */
   mix: (cfg, a) => ({
     label: 'S6 混音 + 母带',
     cmd: cfg.msstEnv,
     cwd: cfg.mixDir,
-    args: push(['mix_master.py'], [
+    env: { COVER_QUALITY_LIB: cfg.qualityLibDir },
+    args: push([runtimePath('mix.py'), '--mix-dir', cfg.mixScriptDir], [
       ['--out', a.out],
       ['--profile', a.profile ?? 'standard'],
-      ['--target', a.targetLufs],
+      ['--target', a.targetLufs ?? cfg.targetLufs],
       ['--p', a.overrides ?? []],
       ['--set', [`inst=${a.inst}`, `lead=${a.lead}`, `harm=${a.harm}`]],
     ]),
-    expects: [a.out],
+    expects: [a.out, a.out + '.mix.json'],
   }),
 
   /** S7 五门验收（响度 / 真峰值 / 波峰因数 / LRA / 立体声） */
   verify: (cfg, a) => ({
     label: 'S7 五门验收',
     cmd: cfg.msstEnv,
-    cwd: cfg.mixDir,
-    args: push(['verify_mix.py', a.wav], [
+    cwd: cfg.mixScriptDir,
+    args: push([mixScriptPath(cfg, 'verify'), a.wav], [
       ['--ref', a.ref],
-      ['--target-lufs', a.targetLufs],
-      ['--json', a.json],
+      ['--target-lufs', a.targetLufs ?? cfg.targetLufs],
+      ['--json', a.json ?? `${a.wav}.verify.json`],
     ]),
-    expects: a.json ? [a.json] : [],
+    expects: [a.json ?? `${a.wav}.verify.json`],
   }),
 
   /** S8 副歌裁剪（能量极小切口 + 淡入淡出 + 重新定响度 + 接缝自证） */
   cut: (cfg, a) => ({
     label: 'S8 裁剪',
     cmd: cfg.msstEnv,
-    cwd: cfg.probeDir,
+    cwd: cfg.scriptsDir,
+    env: { COVER_QUALITY_LIB: cfg.qualityLibDir, COVER_PROBE_DIR: cfg.probeDir },
     args: push([scriptPath(cfg, 'chorusCut')], [
       ['--src', a.src],
       ['--out', a.out],
@@ -140,7 +141,7 @@ export const STAGES = {
       ['--snap', a.snap],
       ['--fade', a.fade],
       ['--gap', a.gap],
-      ['--target', a.targetLufs],
+      ['--target', a.targetLufs ?? cfg.targetLufs],
       ['--no-normalize', a.noNormalize === true],
     ]),
     expects: [a.out],
@@ -150,7 +151,8 @@ export const STAGES = {
   release: (cfg, a) => ({
     label: 'S9 发布封装',
     cmd: cfg.msstEnv,
-    cwd: cfg.probeDir,
+    cwd: cfg.scriptsDir,
+    env: { COVER_QUALITY_LIB: cfg.qualityLibDir, COVER_PROBE_DIR: cfg.probeDir },
     args: push([scriptPath(cfg, 'releaseCut')], [
       ['--wav', a.wav],
       ['--outdir', a.outDir],
@@ -171,7 +173,8 @@ export const STAGES = {
   /** 破音扫描：逐帧相对 ±0.5 s 自身邻域的离群检测 */
   qcCrack: (cfg, a) => ({
     label: 'QC 破音扫描',
-    cmd: cfg.msstEnv, cwd: cfg.probeDir,
+    cmd: cfg.msstEnv, cwd: cfg.scriptsDir,
+    env: { COVER_PROBE_DIR: cfg.probeDir, COVER_PIPELINE_ROOT: cfg.pipelineRoot },
     args: push([scriptPath(cfg, 'crackScan')], [
       ['--lead', a.lead], ['--ref', a.ref], ['--a', a.a], ['--b', a.b],
     ]),
@@ -181,15 +184,15 @@ export const STAGES = {
   /** 换声有效性：MFCC 距离 + 时长/F0/峰值 是否被动过 */
   qcConv: (cfg, a) => ({
     label: 'QC 换声有效性',
-    cmd: cfg.msstEnv, cwd: cfg.probeDir,
+    cmd: cfg.msstEnv, cwd: cfg.scriptsDir,
     args: push([scriptPath(cfg, 'convCheck')], [['--dry', a.lead], ['--ref', a.ref]]),
     expects: [],
   }),
 
-  /** 逐段「像不像目标音色」：谱质心判据 */
+  /** 可选逐段频谱画像：不判断音色身份 */
   qcSection: (cfg, a) => ({
-    label: 'QC 逐段质心（像不像目标音色）',
-    cmd: cfg.msstEnv, cwd: cfg.probeDir,
+    label: 'QC 逐段频谱画像',
+    cmd: cfg.msstEnv, cwd: cfg.scriptsDir,
     args: push([scriptPath(cfg, 'sectionCentroid')],
       [['--dry', a.lead], ['--ref', a.ref], ['--win', a.win ?? []]]),
     expects: [],
@@ -198,17 +201,18 @@ export const STAGES = {
   /** 清亮画像：DIN 45692 尖锐度等（需 mosqito） */
   qcBright: (cfg, a) => ({
     label: 'QC 清亮画像',
-    cmd: cfg.msstEnv, cwd: cfg.probeDir,
+    cmd: cfg.msstEnv, cwd: cfg.scriptsDir,
+    env: { COVER_QUALITY_LIB: cfg.qualityLibDir },
     args: push([scriptPath(cfg, 'brightness')], [
       ['--file', a.file ?? []], ['--win', a.win], ['--lufs', a.lufs],
     ]),
     expects: [],
   }),
 
-  /** 候选源音区体检（挑源用：判 P5 是否 ≳290 Hz） */
+  /** 候选源音区体检（可选辅助，不使用通用音域阈值） */
   qcSource: (cfg, a) => ({
     label: 'QC 候选源音区体检',
-    cmd: cfg.msstEnv, cwd: cfg.probeDir,
+    cmd: cfg.msstEnv, cwd: cfg.scriptsDir,
     args: [scriptPath(cfg, 'sourceSurvey'), ...(a.files ?? [])],
     expects: [],
   }),
@@ -227,57 +231,42 @@ export const GATES = [
 ];
 
 export const DECISIONS = [
-  {
-    id: 'D1', name: '目标音色的可用音区',
-    why: '决定了能不能整曲一个调；这是后面所有决策的前提。',
-    how: '量源干声逐段 F0（`qcSource` / p91 / p89），与其"已被认可的输出"的谱质心锚点比较。',
-    rule: '锚点来自实际验收过的成品，不要用感觉定阈值。',
-  },
-  {
-    id: 'D2', name: '和声是否换声',
-    why: '和声换声会与主唱抢音色；不换声则要保证与主唱同调。',
-    how: '默认 D 档：和声**不换声**，只跟随主唱的移调量。',
-    rule: '若源素材没有独立和声轨（卡啦分离出的和声通道低于 −40 LUFS），此决策无意义。',
-  },
-  {
-    id: 'D3', name: '移调量 K',
-    why: 'K 决定了人声落点，也决定了伴奏要不要跟着移调。',
-    how: '整曲统一 K（比例精确保持）。**八度（±12）保持调性 ⇒ 伴奏可零移调**；非八度必须连伴奏一起移调。',
-    rule: '★ 非八度移调只用在人声上 = 跑调。这条没有例外。',
-  },
-  {
-    id: 'D4', name: '伴奏移调的代价',
-    why: '移调器（pedalboard PhaseVocoder 类）会吃掉低频：实测 +8 时 sub(20–60Hz) 从 41.4% 掉到 5.1%，RMS 掉 2.5 dB。',
-    how: '量 `qcSrcProfile`（p85 频段画像）在"同段对照"下的 sub/bass 占比。',
-    rule: '**频段占比不能跨段比较**（占比之和恒为 100%，加低频必然压低其他段）——必须用同一段做对照。',
-  },
-  {
-    id: 'D5', name: '缺陷窗口（破音 / 浊化）',
-    why: '换声会引入两类局部缺陷，位置不可预测。',
-    how: '破音：`qcCrack`（逐帧 vs 自身 ±0.5 s 邻域，用 z 分数而非绝对阈值）；浊化：p56（源无周期 & 输出强周期的帧占比）。',
-    rule: '用**自身邻域**做基准 —— 鼓点每 0.32 s 重复一次，绝对阈值会把鼓点全判成缺陷。',
-  },
+  { id: 'D1', name: '目标模型与 key', why: '明确实际模型和全曲调性。',
+    how: '核对模型配置；按源音区与试听选择 key，已有用户确认则沿用。',
+    rule: '不从谱质心推断目标音色身份；音区调查仅在有疑问时使用。' },
+  { id: 'D2', name: '和声', why: '保留原和声并与主唱同调。',
+    how: '默认二级分离，只转换主唱。', rule: '跳过二级分离需要显式选择。' },
+  { id: 'D3', name: '伴奏与和声移调', why: '保持与主唱的调性关系。',
+    how: '非八度 key 必须同步移调；零或整八度可保持伴奏。',
+    rule: '移调后核对时长和听感；有变薄疑问时才做同段频谱比较。' },
+  { id: 'D4', name: '输入源', why: '输入源决定上限；Vocaloid 唱法是特色，不等于不可用。',
+    how: '优先原唱 / Vocaloid 原始合成；尽量不用已经换声的 AI 翻唱作为源。',
+    rule: '输入源类型不是普遍技术定律；按歌曲、模型先试听，不用旧失败案例一票否决。' },
+  { id: 'D5', name: '交付形态', why: '整曲、副歌片段与 MP3 封装的验收条件不同。',
+    how: '默认整曲 WAV；只副歌时用 cover_cut 并重新归一响度；MP3 仅在需要时用 cover_release。',
+    rule: '裁剪/编码后必须重测时长、真峰值与响度；已有合格编码不重复封装。' },
 ];
 
 export const FLOW = [
-  { stage: 'S0', name: '意图解析', tool: 'cover_plan',
-    detail: '自然语言 → {歌曲源, 目标音色, 偏好(保人声/保伴奏/保时长), 交付形态}；不确定的项**必须问**，不要猜。' },
-  { stage: 'S1', name: '人声分离', tool: 'cover_separate', detail: 'MSST MelBandRoformer-kim → vocals / instrumental。' },
-  { stage: 'S2', name: '主唱/和声分离', tool: 'cover_separate(karaoke=true)', detail: '可选；决定 D2。' },
-  { stage: 'S3', name: '音区体检与 K 决策', tool: 'cover_qc(qcSource/qcSection)', detail: 'D1 + D3。' },
-  { stage: 'S4', name: '换声推理', tool: 'cover_convert', detail: '引导式：uv 抑制 + crepe 独立判据。' },
-  { stage: 'S5', name: '伴奏移调', tool: 'cover_shift', detail: 'D4；非八度 K 必须做，八度 K 可跳过。' },
-  { stage: 'S6', name: '混音 + 母带', tool: 'cover_mix', detail: '标准档 / 低频补偿档；★ 低频档会顺手削清亮（见 README）。' },
-  { stage: 'S7', name: '五门验收', tool: 'cover_verify', detail: '五门全过才算完成态。' },
-  { stage: 'S8', name: '缺陷修复（可选）', tool: 'cover_qc(qcCrack) + p78', detail: 'D5；只修落在交付段落内的。' },
-  { stage: 'S9', name: '裁剪 / 发布', tool: 'cover_cut → cover_release', detail: '裁剪可消掉"伴奏移调"的必要性（副歌自带高音区）。' },
+  { stage: 'S0', name: '意图与环境', tool: 'cover_plan / cover_doctor', detail: '明确输入、模型、key和交付格式；仅询问仍缺少的必要信息。' },
+  { stage: 'S1', name: '人声分离', tool: 'cover_separate', detail: 'kim → vocals / instrumental。' },
+  { stage: 'S2', name: '主唱/和声分离', tool: 'cover_separate(karaoke=true)', detail: '默认启用；保留原和声，只转换主唱。' },
+  { stage: 'S3', name: '音区诊断（可选）', optional: true, tool: 'cover_qc(kind=source/section)', detail: '只在选 key 或调查音区问题时使用；频谱不是音色身份判据。' },
+  { stage: 'S4', name: '换声', tool: 'cover_convert', detail: 'baseline；先同段 pilot 试听，full 沿用确认参数。guided 是实验选项。' },
+  { stage: 'S5', name: '伴奏/和声移调（条件步骤）', conditional: true, tool: 'cover_shift', detail: '非八度 key 必须同步移调；key=0 无需执行。' },
+  { stage: 'S6', name: '混音与母带', tool: 'cover_mix', detail: 'standard 完整处理链，单次归一化；不自动循环调音。' },
+  { stage: 'S7', name: '技术检查与用户听审', tool: 'cover_verify', detail: '保留时长、有限值、削波/真峰值和错误检查；指标不等同听感或商业质量保证。' },
+  { stage: 'S8', name: '异常诊断（可选）', optional: true, tool: 'cover_qc', detail: '出现可定位问题时选择诊断工具；人工修音/自动化仅按具体问题另行授权，不自动执行。' },
+  { stage: 'S9', name: '裁剪/本地封装（可选）', optional: true, tool: 'cover_cut / cover_release', detail: '仅在需要片段或 MP3/标签时使用；已有合格编码不重复封装，编码后仍需检查解码时长、有限值及真峰值。不会公开发布。' },
 ];
 
 export const WORKFLOW_RULES = [
-  '★ **先 doctor 再动手**：环境不过就明确报告，不要带着坏环境跑几小时。',
-  '★ **每个决策点都要量，不许猜**：量不出来的（如"唱法合不合适"）必须交给主人用耳朵判，并明确说"我量不了"。',
-  '★ **成功以产物为准**：命令退出码为 0 不等于成功 —— 必须检查 expects 里的文件确实生成了。',
-  '★ **先跑 pilot 再跑 full**：换声先用小段试参数，再整曲。',
-  '★ **响度对齐后才做听感对比**：等响（同一 LUFS）是 A/B 的前提，否则比的是音量不是音质。',
-  '★ **凡是"变薄/变闷/变亮"这类结论，必须给同一段的数值对照**，不能给跨段的比例。',
+  '先 doctor；核心依赖缺失应停止，可选诊断/封装依赖缺失只影响对应工具。',
+  '成功必须同时满足进程成功、新鲜产物、输入/模型 provenance、时长与有效数值检查；保留 WARN/错误传播。',
+  '固定 recipe：二级分离→仅主唱 baseline→原和声→完整混音母带；不能静默退化为两轨相加。',
+  '同一窗口 pilot 试听后再 full；先裁源再分离，禁止短主唱混整曲伴奏。',
+  '技术检查与用户听审分别记录；不依据 LUFS、谱质心或其他单一指标承诺商业质量。',
+  '参考曲 A/B 仅在比较候选或排查问题时使用；比较时匹配同段响度，避免音量偏差。',
+  '专项 QC、人工逐句修音和自动化不属于默认完成条件；发现问题先报告，不自动反复调整。',
+  '插件不可用须明确报告；手工流程不能冒充插件路径验证。',
 ];

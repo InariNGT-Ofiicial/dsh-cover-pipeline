@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  cpu:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # 便携 CPU 套件：不需要 GPU / 模型 / 音频素材
+      - run: node test/regression.mjs
+      - run: node test/workflow.mjs
+      - run: node test/setup.mjs
+      - run: npm run test:package

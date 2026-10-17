@@ -28,3 +28,14 @@ desktop.ini
 # ★ 明确排除本机参考件（含个人路径与 DSH 内部配置树，不适合公开）
 参考_DSH合成配置树_*.txt
 _probe_e2e/
+
+# 本机覆盖层（cover_setup / verify-materials --write-config 生成）
+cover.local.json
+
+# 材料下载/解压的临时目录（权重永远不进 git）
+materials/downloads/
+pipeline/probe/_sq/
+
+# Python 缓存
+__pycache__/
+*.pyc

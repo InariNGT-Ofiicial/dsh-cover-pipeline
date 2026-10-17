@@ -7,10 +7,15 @@
  *   2. 每条检查都带 **fix**（怎么修），而不是只说"缺了"。
  *   3. 分 level：`error` 缺了就跑不动；`warn` 缺了会降级；`info` 仅记录。
  */
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { createHash } from 'node:crypto';
 import { statfs } from 'node:fs/promises';
 import { run, runPythonCode, runFfmpeg } from './runner.js';
-import { DDSP_ASSETS, MSST_ASSETS, SCRIPTS, join } from './config.js';
+import {
+  DDSP_ASSETS, MSST_ASSETS, SCRIPTS, join, runtimePath,
+  mixScriptPath, bundledScripts, listVoices,
+} from './config.js';
 
 const PY_PROBE = `
 import json, sys, importlib.util as u
@@ -67,6 +72,18 @@ export async function diskFree(p) {
   }
 }
 
+export function optionalScriptCheck(cfg) {
+  const missingScripts = Object.entries(SCRIPTS)
+    .filter(([, f]) => !existsSync(join(cfg.scriptsDir, f)))
+    .map(([k, f]) => `${k}(${f})`);
+  return {
+    name: `可选/条件工具脚本（${Object.keys(SCRIPTS).length} 个）`, level: 'info',
+    ok: missingScripts.length === 0,
+    detail: missingScripts.length ? `缺 ${missingScripts.length} 个: ${missingScripts.join(', ')}` : `全部就位（${cfg.scriptsDir}）`,
+    fix: missingScripts.length ? '重新 clone 仓库；pipeline/probe/ 随包分发，不需要另找脚本' : '',
+  };
+}
+
 /** 完整体检。返回 {ok, errors, warnings, checks[]} */
 export async function doctor(cfg) {
   const checks = [];
@@ -78,8 +95,8 @@ export async function doctor(cfg) {
 
   // ── 目录 ────────────────────────────────────────────────────────────
   for (const [name, p] of [
-    ['工程根 pipelineRoot', cfg.pipelineRoot],
-    ['脚本目录 probeDir', cfg.probeDir],
+
+
     ['混音工程 mixDir', cfg.mixDir],
     ['MSST 目录 msstDir', cfg.msstDir],
     ['DDSP 目录 ddspDir', cfg.ddspDir],
@@ -134,10 +151,29 @@ export async function doctor(cfg) {
     { minBytes: 10e6, fix: 'DDSP 的 pretrain 缺失，需重新获取' }));
   checks.push(fileRow('目标音色模型 voiceModel', cfg.voiceModel,
     { minBytes: 10e6, fix: '把音色模型的 exp/ 复制到 ddspDir（见模型包内说明）' }));
+  checks.push(fileRow('实际转换模型 config.yaml', join(dirname(cfg.voiceModel), 'config.yaml')));
+  if (existsSync(cfg.voiceModel) && statSync(cfg.voiceModel).isFile()) {
+    checks.push({ name: '实际默认转换权重 SHA256', level: 'info', ok: true,
+      detail: `${createHash('sha256').update(readFileSync(cfg.voiceModel)).digest('hex')}  ${cfg.voiceModel}`, fix: '' });
+  }
   checks.push(fileRow('MSST 人声权重', join(cfg.msstDir, MSST_ASSETS.vocalModel),
     { minBytes: 10e6, fix: 'MSST 的 pretrain 缺失' }));
   checks.push(fileRow('MSST 卡啦权重', join(cfg.msstDir, MSST_ASSETS.karaModel),
-    { minBytes: 1e6, level: 'warn', fix: '缺它则无法做「和声不换声」D 档，会降级为整体换声' }));
+    { minBytes: 1e6, level: 'error', fix: '默认保留原和声需要二级分离；缺失时禁止静默降级' }));
+  for (const [name, file] of [
+    ['kim config', join(cfg.msstDir, MSST_ASSETS.vocalConfig)],
+    ['karaoke config', join(cfg.msstDir, MSST_ASSETS.karaConfig)],
+    ['baseline batch renderer', join(cfg.ddspDir, 'batch_infer.py')],
+    ['MSST inference', join(cfg.msstDir, 'inference.py')],
+    ['mix implementation', mixScriptPath(cfg, 'mix')],
+    ['verify implementation', mixScriptPath(cfg, 'verify')],
+    ...['convert.py', 'long_audio.py', 'guided_core.py', 'mix.py', 'validate_model.py'].map(f => [`plugin adapter ${f}`, runtimePath(f)]),
+  ]) checks.push(fileRow(name, file));
+  if (existsSync(cfg.ddspEnv) && existsSync(cfg.voiceModel)) {
+    const r = await run(cfg.ddspEnv, ['-B', runtimePath('validate_model.py'), '--model', cfg.voiceModel, '--ddsp-dir', cfg.ddspDir], { timeoutMs: 30000 });
+    checks.push({ name: '实际模型配置与引用资产（CPU只读）', level: 'error', ok: r.ok,
+      detail: (r.stdout || r.stderr).trim(), fix: r.ok ? '' : '修复该voiceModel的config及引用资产；转换使用同一路径，不回退共享exp' });
+  }
 
   // ── 外部工具 ────────────────────────────────────────────────────────
   checks.push(fileRow('ffmpeg', cfg.ffmpeg, {
@@ -167,20 +203,31 @@ export async function doctor(cfg) {
     }
   } else {
     checks.push({
-      name: '音质库目录', level: 'warn', ok: false, detail: `不存在: ${qlib}`,
+      name: '可选音质库目录', level: 'info', ok: false, detail: `不存在: ${qlib}`,
       fix: 'pip install mosqito mutagen --no-deps --target <该目录>；缺了则 p95/p97 降级（不影响出成品）',
     });
   }
 
-  // ── 流水线脚本 ──────────────────────────────────────────────────────
-  const missingScripts = Object.entries(SCRIPTS)
-    .filter(([, f]) => !existsSync(join(cfg.probeDir, f)))
-    .map(([k, f]) => `${k}(${f})`);
+  // ── 流水线脚本（随包 15 个 = 5 adapter + 8 probe + 2 mix/verify）──────
+  const bundled = bundledScripts();
   checks.push({
-    name: `流水线脚本（${Object.keys(SCRIPTS).length} 个）`, level: 'error',
-    ok: missingScripts.length === 0,
-    detail: missingScripts.length ? `缺 ${missingScripts.length} 个: ${missingScripts.join(', ')}` : '全部就位',
-    fix: missingScripts.length ? '这些脚本是本项目自研的，需随工程一起拷贝到 probeDir' : '',
+    name: `随包流水线脚本（${bundled.length} 个）`, level: 'error',
+    ok: bundled.every((x) => x.ok),
+    detail: bundled.every((x) => x.ok)
+      ? `全部就位（runtime/ + pipeline/）`
+      : `缺: ${bundled.filter((x) => !x.ok).map((x) => `${x.kind}/${x.file}`).join(', ')}`,
+    fix: '重新 clone 仓库；这 15 个脚本已随包，不需要另找外部工程目录',
+  });
+  checks.push(optionalScriptCheck(cfg));
+
+  // ── 音色库 ──────────────────────────────────────────────────────────
+  const voices = listVoices(cfg);
+  checks.push({
+    name: `音色库（${voices.length} 个）`, level: 'info', ok: voices.length > 0,
+    detail: voices.length
+      ? voices.map((v) => `${v.name}(${v.steps}步)`).join(' / ')
+      : `未发现：${cfg.voiceLibDir || '<songRoot>/03_音色模型_*'}`,
+    fix: voices.length ? '' : '下载「8 人音色模型」包，解压到 <songRoot>/03_音色模型_MYGO-AveMujica',
   });
 
   // ── 磁盘 ────────────────────────────────────────────────────────────

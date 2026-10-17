@@ -13,12 +13,32 @@
  * 用法: node test/harness.mjs        （退出码 0 = 全绿）
  */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import * as plugin from '../src/index.js';
 
 const EXPECTED_TOOLS = [
-  'cover_doctor', 'cover_plan', 'cover_status', 'cover_separate', 'cover_shift',
+  'cover_doctor', 'cover_setup', 'cover_plan', 'cover_status', 'cover_separate', 'cover_shift',
   'cover_convert', 'cover_mix', 'cover_verify', 'cover_qc', 'cover_cut', 'cover_release',
 ];
+
+// 自造夹具：不依赖任何本机素材；30 s / 44.1 kHz / 单声道 / 16 bit
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'cover-harness-'));
+function writeWav(file, seconds = 30) {
+  const frames = Math.floor(44100 * seconds);
+  const buf = Buffer.alloc(44 + frames * 2);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + frames * 2, 4); buf.write('WAVE', 8);
+  buf.write('fmt ', 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22); buf.writeUInt32LE(44100, 24); buf.writeUInt32LE(88200, 28);
+  buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write('data', 36);
+  buf.writeUInt32LE(frames * 2, 40);
+  fs.writeFileSync(file, buf);
+  return file;
+}
+fs.mkdirSync(path.join(TMP, 'fixtures'), { recursive: true });
+fs.mkdirSync(path.join(TMP, 'fixtures', '00_src'), { recursive: true });
+const FIX = path.join(TMP, 'fixtures');
 
 const results = [];
 async function check(name, fn) {
@@ -107,8 +127,10 @@ for (const [n, d] of registry) {
 
 // ── 输出契约：render 必须返回 content blocks ────────────────────────────
 console.log('\n[4] 真机执行与输出契约');
-const CFG_LEAD = 'D:/AI-Song/_pipeline_bqll/02_conv/in_lead/lead.wav';
-const CFG_INST = 'D:/AI-Song/_pipeline_bqll/01_sep/step1_kim/bqll/instrumental.wav';
+const CFG_LEAD = writeWav(path.join(FIX, 'lead.wav'));
+const CFG_HARM = writeWav(path.join(FIX, 'harm.wav'));
+const CFG_INST = writeWav(path.join(FIX, 'instrumental.wav'));
+writeWav(path.join(FIX, '00_src', 'song.wav'));
 
 async function execRaw(n, args) {
   const d = registry.get(n);
@@ -128,7 +150,7 @@ await check('cover_plan（实执行）', async () => {
   assert.ok(v.flow.length >= 9, 'flow 应含 S0–S9');
   assert.ok(v.decisions.length === 5, 'decisions 应为 5 个');
   assert.ok(v.openQuestions.length > 0, '应给出待确认问题');
-  assert.ok(blocks[0].text.includes('九段流程'));
+  assert.ok(blocks[0].text.includes('默认流程'));
 });
 
 await check('cover_status（实执行）', async () => {
@@ -143,6 +165,7 @@ await check('cover_doctor（实执行，含两套 Python 探测）', async () =>
   assert.ok(Array.isArray(v.checks) && v.checks.length >= 10, '检查项过少');
   assert.equal(typeof v.ok, 'boolean');
   docOk = v.ok;
+  assert.equal(v.ok, true, 'doctor reported blocking environment errors');
   console.log(`       → ok=${v.ok} 阻塞=${v.errorCount} 警告=${v.warningCount}`);
   if (!v.ok) {
     for (const c of v.checks.filter((x) => !x.ok && x.level === 'error')) {
@@ -153,15 +176,16 @@ await check('cover_doctor（实执行，含两套 Python 探测）', async () =>
 });
 
 console.log('\n[5] 其余工具 dry-run（回显命令行，不执行）');
+const OUT = path.join(TMP, 'out');
 const dryCases = [
-  ['cover_separate', { inputFolder: 'D:/AI-Song/_pipeline_bqll/00_src', outDir: 'D:/tmp/sep', dryRun: true }],
-  ['cover_shift', { key: 5, outDir: 'D:/tmp/f5', instSrc: CFG_INST, dryRun: true }],
-  ['cover_convert', { src: CFG_LEAD, key: 5, outDir: 'D:/tmp/f5', dryRun: true }],
-  ['cover_mix', { inst: CFG_INST, lead: CFG_LEAD, harm: CFG_LEAD, out: 'D:/tmp/m.wav', dryRun: true }],
+  ['cover_separate', { inputFolder: path.join(FIX, '00_src'), outDir: path.join(OUT, 'sep'), dryRun: true }],
+  ['cover_shift', { key: 5, outDir: path.join(OUT, 'f5'), instSrc: CFG_INST, harmSrc: CFG_HARM, dryRun: true }],
+  ['cover_convert', { src: CFG_LEAD, key: 5, outDir: path.join(OUT, 'f5'), dryRun: true }],
+  ['cover_mix', { inst: CFG_INST, lead: CFG_LEAD, harm: CFG_LEAD, out: path.join(OUT, 'm.wav'), dryRun: true }],
   ['cover_verify', { wav: CFG_LEAD, dryRun: true }],
   ['cover_qc', { kind: 'crack', lead: CFG_LEAD, ref: CFG_LEAD, a: 0, b: 30, dryRun: true }],
-  ['cover_cut', { src: CFG_LEAD, out: 'D:/tmp/c.wav', segs: '46.27:69.00', dryRun: true }],
-  ['cover_release', { wav: CFG_LEAD, outDir: 'D:/tmp', name: 'x', title: 't', artist: 'a', dryRun: true }],
+  ['cover_cut', { src: CFG_LEAD, out: path.join(OUT, 'c.wav'), segs: '46.27:69.00', dryRun: true }],
+  ['cover_release', { wav: CFG_LEAD, outDir: OUT, name: 'x', title: 't', artist: 'a', dryRun: true }],
 ];
 for (const [n, args] of dryCases) {
   await check(`${n} dry-run`, async () => {
@@ -181,5 +205,5 @@ if (failed.length) {
   for (const f of failed) console.log(`  ❌ ${f.name}\n     ${f.msg}`);
 }
 if (warns.length) console.log(`\n[warn] ${warns.join('\n[warn] ')}`);
-if (!docOk) console.log('\n注：doctor 未全绿属预期（环境可能缺件）——它本身是被测对象，不算失败。');
+if (!docOk) console.log('\nDoctor 未通过：环境契约检查失败，不能称环境就绪。');
 process.exit(failed.length ? 1 : 0);

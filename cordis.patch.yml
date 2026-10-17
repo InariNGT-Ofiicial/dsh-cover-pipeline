@@ -3,34 +3,39 @@
 # 本文件随插件包一起分发；`dsh plugin add` 之后，dsh 启动时会自动加载它。
 # 叠加顺序：dsh-base → dsh-web-app → 本 bundle patch → profile 的 cordis.patch.yml → --patch
 #
-# 环境变量（可选，优先级低于 config）：
-#   DSH_COVER_ROOT   - AI-Song 根目录，默认 D:/AI-Song
-#   DSH_COVER_PROBE  - 脚本与产物目录，默认 <root>/_pipeline_bqll/_probe
+# ★ 路径默认全留空：安装后由 src/config.js **自动发现**
+#   - 依次尝试 DSH_COVER_ROOT、D:/AI-Song、C:/AudioWork、cwd
+#   - 在根目录里找 01_*（MSST）、02_*/DDSP-barbara-*（DDSP）、03_*（音色库）
+#   - 脚本默认用仓库自带的 pipeline/（15 个），不需要另配 probeDir
+#   发现不到时，运行 `cover_setup` 会给出可直接粘的配置片段。
+#
+# 环境变量（可选）：
+#   DSH_COVER_ROOT   - AI-Song 根目录
+#   DSH_COVER_PROBE  - 工程数据目录，默认 <root>/_pipeline_bqll/_probe
 #
 # 注意：patch 会**整行替换**目标行的 config，故此处列出本插件所需的全部键。
 - insert:
     - id: cover-pipeline
       name: 'dsh-cover-pipeline'
       config:
-        # ── 目录（留空则用内置默认值，见 src/config.js）──────────────
-        songRoot: !!js process.env.DSH_COVER_ROOT ?? 'D:/AI-Song'
-        pipelineRoot: !!js (process.env.DSH_COVER_ROOT ?? 'D:/AI-Song') + '/_pipeline_bqll'
-        probeDir: !!js process.env.DSH_COVER_PROBE ?? 'D:/AI-Song/_pipeline_bqll/_probe'
-        mixDir: 'D:/AI-Song/_pipeline_mingyue'
+        # ── 目录（留空 = 自动发现）────────────────────────────────────
+        songRoot: !!js process.env.DSH_COVER_ROOT ?? ''
+        pipelineRoot: ''
+        probeDir: !!js process.env.DSH_COVER_PROBE ?? ''
+        mixDir: ''
 
-        # ── 两套 Python 环境（这是本插件唯一的外部硬依赖）────────────
-        # MSST：人声分离 + 混音（需要 pyloudnorm / pedalboard / soundfile / librosa）
-        msstDir: 'D:/AI-Song/01_人声分离_MSST-GUI'
-        msstEnv: 'D:/AI-Song/01_人声分离_MSST-GUI/env/python.exe'
-        # DDSP：换声推理（需要 torch / torchcrepe，不需要 pedalboard）
-        ddspDir: 'D:/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2'
-        ddspEnv: 'D:/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/env/python.exe'
+        # ── 两套 Python 环境（外部硬依赖；留空 = 在 01_/02_ 里找 env/python.exe）
+        msstDir: ''
+        msstEnv: ''
+        ddspDir: ''
+        ddspEnv: ''
 
-        # ── 其它外部件 ────────────────────────────────────────────────
-        ffmpeg: 'D:/AI-Song/01_人声分离_MSST-GUI/env/ffmpeg.exe'
-        voiceModel: 'D:/AI-Song/03_音色模型_MYGO-AveMujica/祥子_步数20000/exp/reflow-test/model_20000.pt'
+        # ── 其它外部件（留空 = 自动发现）──────────────────────────────
+        ffmpeg: ''
+        voiceModel: ''
+        voiceLibDir: ''
         # 音质指标库（mosqito/mutagen，用 pip --target 装的独立目录；没有则 p95/p97 降级）
-        qualityLibDir: 'D:/AI-Song/_pipeline_bqll/_probe/_sq'
+        qualityLibDir: ''
 
         # ── 业务默认值 ────────────────────────────────────────────────
         targetLufs: -14.0

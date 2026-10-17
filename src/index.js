@@ -11,11 +11,13 @@
  *   "手写 ToolDefinition（标准 JSON Schema），避免引入 dsh-tools 的 8 个 peer 依赖"。
  *   依赖越少，越可能在任意 profile 里加载成功。
  */
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join as pjoin } from 'node:path';
 
-import { resolveConfig, join } from './config.js';
-import { run } from './runner.js';
+import {
+  resolveConfig, join, findVoice, listVoices, bundledScripts, LOCAL_CONFIG,
+} from './config.js';
+import { runStage, runSeparation } from './execution.js';
 import { doctor, renderDoctor, probePython, diskFree } from './checks.js';
 import { STAGES, FLOW, GATES, DECISIONS, WORKFLOW_RULES, keyTag } from './stages.js';
 
@@ -25,30 +27,6 @@ export const inject = ['tools'];
 // ───────────────────────────────────────────────────────────────────────────
 // 通用工具
 // ───────────────────────────────────────────────────────────────────────────
-
-/** 检查一批产物是否存在（★ 成功以产物为准，不以退出码为准） */
-function inspectArtifacts(paths) {
-  const out = [];
-  for (const p of paths) {
-    if (!p) continue;
-    const exists = existsSync(p);
-    out.push({ path: p, exists, sizeBytes: exists ? statSync(p).size : 0 });
-  }
-  return out;
-}
-
-/** 扫目录找最新匹配的文件（应对"产物名含参数"的场景，如 lead_uniform_k+5.wav） */
-function newestMatching(dir, re) {
-  if (!dir || !existsSync(dir)) return null;
-  let best = null;
-  for (const f of readdirSync(dir, { withFileTypes: true })) {
-    if (!f.isFile() || !re.test(f.name)) continue;
-    const full = pjoin(dir, f.name);
-    const st = statSync(full);
-    if (!best || st.mtimeMs > best.mtimeMs) best = { path: full.replace(/\\/g, '/'), name: f.name, mtimeMs: st.mtimeMs, sizeBytes: st.size };
-  }
-  return best;
-}
 
 /** 列出目录一层的子目录及其 wav 数量与最新文件 */
 function scanDir(dir, depth = 2) {
@@ -94,67 +72,6 @@ function tail(s, n = 2500) {
  * 阶段执行内核：前置检查 → dry-run 或执行 → 产物自证。
  * 所有 stage 类工具都走这里，保证行为一致。
  */
-async function runStage(cfg, key, args, opts = {}) {
-  const build = STAGES[key];
-  if (!build) throw new Error(`未知阶段: ${key}`);
-  const spec = build(cfg, args);
-
-  // 前置：输入必须存在
-  const inputs = opts.requires ?? [];
-  const missingInputs = inputs.filter((p) => p && !existsSync(p));
-  if (missingInputs.length) {
-    return {
-      ok: false, phase: 'precondition', label: spec.label,
-      error: `输入不存在: ${missingInputs.join(', ')}`,
-      cmdline: '', artifacts: [],
-    };
-  }
-
-  if (args.dryRun === true) {
-    return {
-      ok: true, phase: 'dry-run', label: spec.label,
-      cmdline: [spec.cmd, ...spec.args].map((x) => (/\s/.test(x) ? JSON.stringify(x) : x)).join(' '),
-      cwd: spec.cwd ?? null, expects: spec.expects, artifacts: [],
-    };
-  }
-
-  const r = await run(spec.cmd, spec.args, {
-    cwd: spec.cwd,
-    timeoutMs: args.timeoutMs ?? cfg.timeoutMs,
-    maxOutputChars: cfg.maxOutputChars,
-  });
-
-  // 产物自证：expects + 额外扫描
-  let expects = spec.expects ?? [];
-  if (key === 'convert' && args.outDir) {
-    const found = newestMatching(args.outDir, /^lead_uniform_k.*\.wav$/);
-    if (found) expects = [...expects, found.path];
-  }
-  if ((key === 'separate' || key === 'karaoke') && args.outDir) {
-    const found = newestMatching(args.outDir, /^(vocals|Vocals)\.wav$/);
-    if (found) expects = [...expects, found.path];
-    const inst = newestMatching(args.outDir, /^instrumental\.wav$/);
-    if (inst) expects = [...expects, inst.path];
-  }
-  const artifacts = inspectArtifacts(expects);
-  const artifactsOk = artifacts.length === 0 ? null : artifacts.every((x) => x.exists && x.sizeBytes > 1024);
-
-  return {
-    ok: r.ok && artifactsOk !== false,
-    phase: 'executed',
-    label: spec.label,
-    cmdline: r.cmdline,
-    cwd: spec.cwd ?? null,
-    exitCode: r.code,
-    timedOut: r.timedOut,
-    ms: r.ms,
-    artifacts,
-    artifactsOk,
-    stdout: r.stdout,
-    stderr: r.stderr,
-  };
-}
-
 /** 把阶段结果渲染成人读文本（各工具共用） */
 function renderStage(title, v) {
   if (v.phase === 'dry-run') {
@@ -197,6 +114,8 @@ const STAGE_SCHEMA = {
     ms: { type: 'integer' },
     error: { type: 'string' },
     artifactsOk: { type: 'boolean' },
+    technicalChecksPassed: { type: 'boolean' },
+    manifestPath: { type: 'string' },
     artifacts: {
       type: 'array',
       items: {
@@ -243,7 +162,7 @@ export async function apply(ctx, config) {
     name: 'cover_doctor',
     description:
       'AI 翻唱流水线的环境体检：检查两套 Python 环境（MSST / DDSP）及其模块、模型权重（HiFiGAN / ContentVec / 目标音色）、'
-      + 'ffmpeg、音质库、15 个流水线脚本、磁盘空间与代理。'
+      + 'ffmpeg、音质库、随包 15 个流水线脚本（5 adapter + 8 probe + 2 mix/verify）、音色库、磁盘空间与代理。'
       + '★ 任何翻唱任务开始前先跑这个；它同时给出每项缺失的修复办法。',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     output: textOut(
@@ -282,6 +201,109 @@ export async function apply(ctx, config) {
         warningCount: res.warnings.length,
         checks: res.checks.map(({ name: n, level, ok, detail, fix }) => ({ name: n, level, ok, detail, fix: fix ?? '' })),
         rendered,
+      };
+    },
+  });
+
+  // ── 1b · 一句话接入：自动发现 + 选音色 + 出配置 ───────────────────────
+  tools.register({
+    name: 'cover_setup',
+    description:
+      '一句话接入的入口：检查随包 15 个脚本、自动发现 MSST/DDSP/音色库、按名字选音色，'
+      + '输出可直接使用的配置片段与缺失清单。默认只读；writeConfig=true 时写仓库根 cover.local.json'
+      + '（git 忽略，优先级最高），**下次加载 DSH 生效**。',
+    parameters: {
+      type: 'object',
+      properties: {
+        root: { type: 'string', description: 'AI-Song 根目录（省略则自动发现 D:/AI-Song、C:/AudioWork 等）' },
+        voice: { type: 'string', description: '默认音色名，如「祥子」' },
+        writeConfig: { type: 'boolean', description: '把发现的路径写入 cover.local.json（默认 false）' },
+      },
+      additionalProperties: false,
+    },
+    output: textOut(
+      {
+        type: 'object',
+        properties: {
+          ok: { type: 'boolean' },
+          root: { type: 'string' },
+          voice: { type: 'string' },
+          voices: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { name: { type: 'string' }, steps: { type: 'integer' }, model: { type: 'string' } },
+              required: ['name', 'steps', 'model'],
+              additionalProperties: false,
+            },
+          },
+          missing: { type: 'array', items: { type: 'string' } },
+          patch: { type: 'string' },
+          wrote: { type: 'string' },
+          rendered: { type: 'string' },
+        },
+        required: ['ok', 'root', 'voice', 'voices', 'missing', 'patch', 'wrote', 'rendered'],
+        additionalProperties: false,
+      },
+      (v) => v.rendered,
+    ),
+    async execute(args) {
+      const next = resolveConfig({ ...cfg, ...(args.root ? { songRoot: args.root } : {}) });
+      const scripts = bundledScripts();
+      const voices = next.voices;
+      const picked = args.voice
+        ? findVoice(next, args.voice)
+        : (voices.find((v) => v.model === next.voiceModel) ?? null);
+      const missing = [];
+      const badScripts = scripts.filter((s) => !s.ok);
+      if (badScripts.length) missing.push(`随包脚本缺 ${badScripts.length} 个: ${badScripts.map((s) => `${s.kind}/${s.file}`).join(', ')}`);
+      for (const [label, p] of [
+        ['MSST 目录', next.msstDir], ['DDSP 目录', next.ddspDir],
+        ['MSST python', next.msstEnv], ['DDSP python', next.ddspEnv],
+      ]) if (!p || !existsSync(p)) missing.push(`${label} 不存在: ${p || '(空)'}`);
+      if (!next.voiceModel || !existsSync(next.voiceModel)) missing.push(`目标音色权重不存在: ${next.voiceModel || '(空)'}`);
+      if (args.voice && !picked) missing.push(`音色库中没有 "${args.voice}"；可用: ${voices.map((v) => v.name).join(', ') || '（空）'}`);
+      if (!existsSync(join(next.msstDir, 'pretrain/MelBandRoformer_kim.ckpt'))) missing.push('MSST kim 权重缺失（见 materials/README.md）');
+      if (!existsSync(join(next.ddspDir, 'pretrain/contentvec/checkpoint_best_legacy_500.pt'))) missing.push('DDSP ContentVec 缺失（见 materials/README.md）');
+
+      const keys = ['songRoot', 'pipelineRoot', 'probeDir', 'mixDir', 'msstDir', 'msstEnv',
+        'ddspDir', 'ddspEnv', 'ffmpeg', 'voiceLibDir', 'voiceModel', 'qualityLibDir'];
+      const yaml = (v) => `'${String(v ?? '').replace(/'/g, "''")}'`;
+      const patch = ['config:', ...keys.map((k) => `  ${k}: ${yaml(next[k])}`)].join('\n');
+
+      let wrote = '';
+      if (args.writeConfig === true) {
+        const local = {};
+        for (const k of [...keys, 'scriptsDir', 'mixScriptDir']) local[k] = next[k] ?? '';
+        if (picked) local.voiceModel = picked.model;
+        writeFileSync(LOCAL_CONFIG, JSON.stringify(local, null, 2), 'utf8');
+        wrote = LOCAL_CONFIG;
+      }
+
+      const lines = [
+        `【一句话接入｜${next.songRoot || '(未发现根目录)'}】`,
+        `随包脚本: ${scripts.filter((s) => s.ok).length}/${scripts.length}`,
+        `音色库: ${voices.length} 个${voices.length ? ' — ' + voices.map((v) => `${v.name}(${v.steps}步)`).join(' / ') : ''}`,
+        `选中音色: ${picked ? `${picked.name}(${picked.steps}步)  ${picked.model}` : '(未选中；可用 voice 指定)'}`,
+        '',
+        missing.length ? '── 还缺 ──' : '── 依赖齐全，可以开跑 ──',
+        ...missing.map((m) => `  ❌ ${m}`),
+        '',
+        '配置片段（粘到 profile 的 `cordis.patch.yml` 的 `cover-pipeline.config` 下）：',
+        patch,
+        wrote ? `\n已写入本机覆盖层: ${wrote}\n★ 需要重启 DSH（或重新加载插件）才生效。` : '\n（只读模式；要落盘请加 writeConfig=true）',
+        '',
+        '下一步: 重启 DSH → cover_doctor → cover_plan → cover_separate',
+      ];
+      return {
+        ok: missing.length === 0,
+        root: next.songRoot ?? '',
+        voice: picked?.name ?? '',
+        voices: voices.map((v) => ({ name: v.name, steps: v.steps, model: v.model })),
+        missing,
+        patch,
+        wrote,
+        rendered: lines.join('\n'),
       };
     },
   });
@@ -329,7 +351,7 @@ export async function apply(ctx, config) {
       if (!args.songPath) q.push('源歌曲音频的路径？（需 44.1/48 kHz 的 mp3/wav/flac）');
       if (!args.voiceName) q.push('目标音色（用哪个音色模型）？');
       q.push('音区策略：整曲统一移调（保比例）还是分段（保音区、但会压缩副歌/主歌比例）？');
-      q.push('和声要不要一起换声？（默认 D 档：和声不换声，只跟随移调）');
+      q.push('和声默认保留原声（二级分离）；仅在用户明确选择时更换此策略。');
       if (!args.preference || args.preference === 'unknown') {
         q.push('若"人声更像目标音色"与"伴奏更厚"不可兼得，你要哪个？（本项目实测：非八度移调必然伤伴奏低频）');
       }
@@ -340,13 +362,13 @@ export async function apply(ctx, config) {
         args.songPath ? `源: ${args.songPath}` : '源: **未提供**',
         args.voiceName ? `目标音色: ${args.voiceName}` : '目标音色: **未提供**',
         '',
-        '── 九段流程 ──',
+        '── 默认流程与可选步骤 ──',
         ...FLOW.map((f) => `  ${f.stage} ${f.name}  [工具 ${f.tool}]\n      ${f.detail}`),
         '',
-        '── 五个必须量、不许猜的决策点 ──',
+        '── 配置决策 ──',
         ...DECISIONS.map((d) => `  ${d.id} ${d.name}\n      为什么: ${d.why}\n      怎么量: ${d.how}\n      铁律: ${d.rule}`),
         '',
-        '── 五道验收门（缺一不算完成态）──',
+        '── 技术指标（不代替听审；LRA 为报告项）──',
         ...GATES.map(([k, v]) => `  ${k}: ${v}`),
         '',
         '── 纪律 ──',
@@ -434,7 +456,7 @@ export async function apply(ctx, config) {
       properties: {
         inputFolder: { type: 'string', description: '输入目录（只放要分离的音频）' },
         outDir: { type: 'string', description: '输出目录；结果落在 <outDir>/<曲名>/' },
-        karaoke: { type: 'boolean', description: '是否追加主唱/和声分离（默认 false）' },
+        karaoke: { type: 'boolean', description: '是否追加主唱/和声分离（默认 true，保留原和声；false须明确选择整体换声）' },
         dryRun: { type: 'boolean', description: '只回显命令不执行' },
         timeoutMs: { type: 'integer' },
       },
@@ -443,16 +465,7 @@ export async function apply(ctx, config) {
     },
     output: textOut(stageSchemaWith({ karaokeResult: STAGE_SCHEMA }), (v) =>
       renderStage('人声分离', v) + (v.karaokeResult ? `\n\n${renderStage('主唱/和声分离', v.karaokeResult)}` : '')),
-    async execute(args) {
-      const first = await runStage(cfg, 'separate', args, { requires: [args.inputFolder] });
-      const out = { ...first };
-      if (first.ok && args.karaoke === true) {
-        const kara = await runStage(cfg, 'karaoke', { inputFolder: args.outDir, outDir: join(args.outDir, 'kara'), dryRun: args.dryRun }, {});
-        out.karaokeResult = kara;
-        out.ok = first.ok && kara.ok;
-      }
-      return out;
-    },
+    execute: (args) => runSeparation(cfg, args),
   });
 
   // ── 5 · S3 伴奏/和声移调 ──────────────────────────────────────────────
@@ -468,23 +481,24 @@ export async function apply(ctx, config) {
         key: { type: 'number', description: '半音数 K（与人声的 --uniform 相同）' },
         outDir: { type: 'string', description: '输出目录（生成 inst.wav / harm.wav）' },
         instSrc: { type: 'string', description: '源伴奏（★ 换歌必须指定）' },
-        harmSrc: { type: 'string', description: '源和声（可省；缺则用脚本默认）' },
+        harmSrc: { type: 'string', description: '当前歌曲原和声（必须指定，禁止使用旧歌默认轨）' },
         subtype: { type: 'string', enum: ['FLOAT', 'PCM_24', 'PCM_16'], description: '落盘格式，默认 FLOAT' },
         dryRun: { type: 'boolean' },
         timeoutMs: { type: 'integer' },
       },
-      required: ['key', 'outDir', 'instSrc'],
+      required: ['key', 'outDir', 'instSrc', 'harmSrc'],
       additionalProperties: false,
     },
     output: textOut(STAGE_SCHEMA, (v) => renderStage('伴奏/和声移调', v)),
-    execute: (args) => runStage(cfg, 'shift', args, { requires: [args.instSrc] }),
+    execute: (args) => runStage(cfg, 'shift', args, { requires: [args.instSrc, args.harmSrc] }),
   });
 
   // ── 6 · S4 换声 ───────────────────────────────────────────────────────
   tools.register({
     name: 'cover_convert',
     description:
-      'S4 换声推理（DDSP-SVC + 目标音色模型，引导式参数）：把源干声换成目标音色，整曲统一移调 K。'
+      'S4 换声推理（DDSP-SVC；默认原始batch，guided仅显式实验）：把源干声换成目标音色，整曲统一移调 K。'
+      + '可用 voice 按名字选音色（如「祥子」），也可用 model 直指权重路径。'
       + '★ 先用 mode=pilot 试小段确认参数，再用 mode=full 跑整曲。'
       + 'k=0 表示源本身已在目标音区（如女声源），此时伴奏无需移调。',
     parameters: {
@@ -493,12 +507,19 @@ export async function apply(ctx, config) {
         src: { type: 'string', description: '源干声 wav' },
         key: { type: 'number', description: '整曲统一移调半音数（0 = 不移调）' },
         outDir: { type: 'string', description: '输出目录' },
-        mode: { type: 'string', enum: ['pilot', 'full'], description: '默认 full' },
+        mode: { type: 'string', enum: ['pilot', 'full'], description: '默认 pilot；full须先取得同参数试听的用户确认' },
+        backend: { type: 'string', enum: ['baseline', 'guided'], description: '默认 baseline：已验收batch路线；guided为未听审实验路线' },
+        start: { type: 'number', description: 'pilot起点秒，默认0；已裁输入按本文件时间计' },
+        duration: { type: 'number', description: 'pilot时长秒，默认25；短输入截至末尾，空窗失败' },
+        step: { type: 'integer', description: '默认50' },
+        voice: { type: 'string', description: '音色名（如「祥子」）；按名字从音色库解析，优先级低于 model' },
+        method: { type: 'string', enum: ['euler', 'rk4'] },
+        tStart: { type: 'number', description: '显式重建值0.7，不是原入口默认值' },
         amp: { type: 'number', description: '梳齿激励衰减（默认 0.5）' },
         nsfuv: { type: 'integer', description: 'NSF uv 帧置零（默认 1）' },
         confHi: { type: 'number' }, confLo: { type: 'number' }, nsfThred: { type: 'number' },
         crepeUv: { type: 'integer' }, crepeTh: { type: 'number' },
-        model: { type: 'string', description: '相对 ddspDir 的模型路径' },
+        model: { type: 'string', description: '模型绝对路径；省略时使用doctor检查的voiceModel' },
         dryRun: { type: 'boolean' },
         timeoutMs: { type: 'integer' },
       },
@@ -507,8 +528,23 @@ export async function apply(ctx, config) {
     },
     output: textOut(STAGE_SCHEMA, (v) =>
       renderStage('换声推理', v) + (v.artifacts?.some((a) => a.exists)
-        ? `\n  提示：产物名含 K（lead_uniform_k${keyTag(0)}…），下一步把它作为 cover_mix 的 lead。` : '')),
-    execute: (args) => runStage(cfg, 'convert', args, { requires: [args.src] }),
+        ? `\n  下一步：将本次明确返回的主唱文件用于cover_mix，harm使用同源kara原和声；先对齐同一时间段，不能混用整曲轨。` : '')),
+    execute(args) {
+      let model = args.model;
+      if (!model && args.voice) {
+        const v = findVoice(cfg, args.voice);
+        if (!v) {
+          const names = cfg.voices.map((x) => `${x.name}(${x.steps}步)`).join(', ') || '（音色库为空）';
+          return {
+            ok: false, phase: 'precondition', label: '换声推理',
+            error: `未找到音色 "${args.voice}"。可用: ${names}`,
+            cmdline: '', artifacts: [], artifactsOk: false,
+          };
+        }
+        model = v.model;
+      }
+      return runStage(cfg, 'convert', { ...args, model }, { requires: [args.src] });
+    },
   });
 
   // ── 7 · S6 混音 ───────────────────────────────────────────────────────
@@ -543,7 +579,7 @@ export async function apply(ctx, config) {
     description:
       'S7 五门验收：整合响度（−14.0±0.5 LUFS）、真峰值（≤−1.0 dBTP）、波峰因数（≥12 dB）、'
       + '动态范围 LRA、立体声相关（0.20~0.95）。返回 PASS/FAIL 明细，可同时落盘 JSON。'
-      + '★ 五门全过才算"完成态"。',
+      + '★ ok仅代表技术门结果；用户听感验收单独记录，不由数值替代。',
     parameters: {
       type: 'object',
       properties: {
@@ -565,12 +601,12 @@ export async function apply(ctx, config) {
   tools.register({
     name: 'cover_qc',
     description:
-      '质检套件，按 kind 选择：'
+      '可选诊断套件（非默认完成条件），按 kind 选择：'
       + 'crack=破音扫描（逐帧 vs 自身 ±0.5 s 邻域的 z 分数离群，用 lead/ref/a/b）；'
       + 'conv=换声有效性（MFCC 距离 + 时长/F0 是否被动过）；'
-      + 'section=逐段"像不像目标音色"（谱质心判据，用 win 指定窗口）；'
+      + 'section=逐段频谱画像（不判断音色身份，用 win 指定窗口）；'
       + 'bright=清亮画像（DIN 45692 尖锐度，需 mosqito）；'
-      + 'source=候选源音区体检（挑源用，判 P5 是否 ≳290 Hz）。',
+      + 'source=候选源音区调查（按模型和试听判断，不使用通用音域阈值）。',
     parameters: {
       type: 'object',
       properties: {
@@ -632,7 +668,7 @@ export async function apply(ctx, config) {
   tools.register({
     name: 'cover_release',
     description:
-      'S9 发布封装：wav → mp3 320k（lameenc）+ ID3v2.3（mutagen）+ ID3v1（手工 128 字节尾块），'
+      '可选本地封装：wav → mp3 320k（lameenc）+ ID3v2.3（mutagen）+ ID3v1（手工 128 字节尾块），'
       + '并**自证**解码后的响度/真峰值/时长差与标签回读，而不是跑完就算。'
       + '★ 会提示版权：AI 翻唱的词曲著作权仍属原作者，建议仅作个人试听。',
     parameters: {
@@ -657,7 +693,7 @@ export async function apply(ctx, config) {
   });
 
   registered.push(
-    'cover_doctor', 'cover_plan', 'cover_status', 'cover_separate', 'cover_shift',
+    'cover_doctor', 'cover_setup', 'cover_plan', 'cover_status', 'cover_separate', 'cover_shift',
     'cover_convert', 'cover_mix', 'cover_verify', 'cover_qc', 'cover_cut', 'cover_release',
   );
   logger.info(`[cover-pipeline] 已注册 ${registered.length} 个工具: ${registered.join(', ')}`);
