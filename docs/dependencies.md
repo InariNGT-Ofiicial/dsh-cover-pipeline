@@ -11,7 +11,7 @@
 | DSH 宿主＋插件 | 兼容的宿主运行环境与插件配置。插件没有运行时 npm dependencies；Cordis 由宿主提供。 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) |
 | MSST 分离工程 | CLI 推理代码、兼容 Python/PyTorch 环境、Kim 与 karaoke 两组权重及对应配置。 | [MSST](https://github.com/ZFTurbo/Music-Source-Separation-Training)、[模型与配置映射](https://github.com/ZFTurbo/Music-Source-Separation-Training/blob/main/docs/pretrained_models.md) |
 | DDSP 推理工程 | 与目标音色匹配的代码和环境，以及下节列出的配置引用资产。 | [DDSP-SVC](https://github.com/yxlllc/DDSP-SVC) |
-| 混音与检查实现 | `mix_master.py`、`verify_mix.py` **已随 1.1.2 包分发**（`pipeline/mix/`）；NumPy、SciPy、SoundFile、pyloudnorm、pedalboard 可放在已有分离环境中。 | 仓库内 `pipeline/mix/`，无需另找。 |
+| 混音与检查实现 | `mix_master.py`、`verify_mix.py` **已随 1.1.2 包分发**（`runtime/`）；NumPy、SciPy、SoundFile、pyloudnorm、pedalboard 可放在已有分离环境中。 | 仓库内 `runtime/`，无需另找。 |
 
 Python 库随各自兼容工程环境准备，不需要把每个底层库当作另一套软件逐个手动下载。已有环境应先核对，不要为“精简”直接卸载包。
 
@@ -67,11 +67,11 @@ Python 库随各自兼容工程环境准备，不需要把每个底层库当作�
 
 ## 源码分发边界（1.1.2 已补齐脚本）
 
-**15 个脚本已经随包**：5 个 runtime adapter（`runtime/`）+ 8 个 probe（`pipeline/probe/`：移调、破音扫描、换声核验、逐段画像、源音区调查、副歌裁剪、清亮画像、发布封装）+ 2 个混音/验收（`pipeline/mix/`）。clone 之后不需要再去找 p51–p97 原工程目录。
+**8 个核心脚本已经随包**：5 个 runtime adapter + `shift.py` + `mix_master.py` / `verify_mix.py`，全部在 `runtime/`。旧歌工程里的 QC / 裁剪 / 封装脚本已移除，clone 之后不需要再去找任何旧工程目录。
 
 仍未随包的是**大文件**：MSST 整合工程、DDSP 6.2 工程、ContentVec/RMVPE/HiFiGAN 预训练件、8 个音色模型。原因是单文件 100 MB 的 git 限制与第三方许可；落位、sha256 与网盘入口见 [materials/README.md](../materials/README.md)。
 
-1.1.2 包内 `runtime/mix.py` 仍是适配器：它调用 `pipeline/mix/mix_master.py` 的 `run`，限制一次响度归一化，并保留结果记录；`cover_verify` 执行同目录的 `verify_mix.py`。把三轨简单相加再 loudnorm 不等价于已测试的 EQ、压缩、去齿音、混响与母带链。
+1.1.2 包内 `runtime/mix.py` 仍是适配器：它调用同目录 `mix_master.py` 的 `run`，限制一次响度归一化，并保留结果记录；`cover_verify` 执行同目录的 `verify_mix.py`。把三轨简单相加再 loudnorm 不等价于已测试的 EQ、压缩、去齿音、混响与母带链。
 
 `cover_doctor` 会做自动发现（根目录、`01_/02_/03_`、`env/python.exe`），但它是运行时探测，不是依赖锁或干净装机证明。先配兼容工程和资产，再跑 doctor、做同段短试听和技术检查，最后由用户听审确认。数值通过不是听感或商业质量保证。
 
@@ -79,7 +79,7 @@ Python 库随各自兼容工程环境准备，不需要把每个底层库当作�
 
 - 审计依据：已完成的 baseline 全曲入口记录、两级分离结果、实际音色配置与源码调用关系。
 - 轻量验证：CPU 导入；4 秒合成音频通过实际混音适配器与检查脚本。后者在阻断 Torch、librosa、torchcrepe、mosqito、mutagen、lameenc 导入及音频阶段外部进程后仍完成，支持它们不是该 WAV 混音路径的依赖。
-- 随包脚本回归：`node test/regression.mjs`（15）、`node test/workflow.mjs`（7）、`node test/setup.mjs`（8）、`node test/harness.mjs`（37）、`node test/package.mjs`；`test/mix-cpu.py` 用随包 `pipeline/mix` 实测 3 项。
+- 随包脚本回归：`node test/regression.mjs`（15）、`node test/workflow.mjs`（6）、`node test/setup.mjs`（8）、`node test/harness.mjs`（28）、`node test/package.mjs`；`test/mix-cpu.py` 用随包 `runtime/` 实测 3 项。
 - 未进行干净装机、逐包卸载、大歌曲重跑或新 GPU 验证。没有因此证明完整 DSH 界面中的全链执行，也没有改变已验收音频。
 
 ## 许可单独核对

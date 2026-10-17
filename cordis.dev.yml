@@ -23,7 +23,6 @@
         ffmpeg: ''
         voiceModel: ''
         voiceLibDir: ''
-        qualityLibDir: ''
         targetLufs: -14.0
         timeoutMs: 3600000
         maxOutputChars: 6000

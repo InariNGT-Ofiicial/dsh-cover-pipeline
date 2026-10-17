@@ -4,13 +4,12 @@ import { execFileSync } from 'node:child_process';
 assert.ok(process.env.npm_execpath, 'Run with npm run test:package');
 const [pack] = JSON.parse(execFileSync(process.execPath,
   [process.env.npm_execpath, 'pack', '--dry-run', '--json'], { encoding: 'utf8' }));
-const allowed = /^(?:LICENSE|README\.md|package\.json|cordis\.(?:patch|dev)\.yml|src\/[^/]+\.js|runtime\/[^/]+\.py|pipeline\/(?:probe|mix)\/[^/]+\.py|materials\/[^/]+\.(?:json|md)|docs\/[^/]+\.md|scripts\/[^/]+\.(?:mjs|ps1))$/;
+const allowed = /^(?:LICENSE|README\.md|package\.json|cordis\.(?:patch|dev)\.yml|src\/[^/]+\.js|runtime\/[^/]+\.py|materials\/[^/]+\.(?:json|md)|docs\/[^/]+\.md|scripts\/[^/]+\.(?:mjs|ps1))$/;
 for (const file of pack.files) assert.match(file.path, allowed, `Unexpected package file: ${file.path}`);
 for (const path of [
   'src/index.js', 'src/execution.js',
   'runtime/long_audio.py', 'runtime/convert.py', 'runtime/mix.py', 'runtime/guided_core.py', 'runtime/validate_model.py',
-  'pipeline/probe/p55_shift_uniform.py', 'pipeline/probe/p97_release_cut.py',
-  'pipeline/mix/mix_master.py', 'pipeline/mix/verify_mix.py',
+  'runtime/shift.py', 'runtime/mix_master.py', 'runtime/verify_mix.py',
   'materials/manifest.json', 'scripts/verify-materials.mjs',
 ]) {
   assert.ok(pack.files.some(file => file.path === path), `Missing packaged file: ${path}`);

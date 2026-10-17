@@ -5,10 +5,9 @@
 | Item | Decision and reason |
 | --- | --- |
 | Reference loudness-matched A/B | Optional for comparing candidates or diagnosing issues. A reference is not required to deliver an accepted mix. Match segment and loudness when comparing. |
-| cover_qc | Keep optional diagnostics; these complement, rather than duplicate, core input/model/output checks. Spectral centroid is a spectral description, not proof of voice identity. |
-| cover_release | Keep optional local MP3/tag packaging. Do not encode an already acceptable file again. Any chosen encoder still needs decoded duration, finite-value and true-peak checks. This tool does not publish online. |
+| Legacy QC/cut/release | **Removed** with the old song line: `cover_qc`, `cover_cut`, `cover_release` and all p50–p97 helpers are no longer shipped. Segment cutting and MP3 packaging are external steps. |
+| Historical helper scripts | Removed. Core scripts now live in `runtime/` and are the only bundled Python helpers. |
 | Manual phrase tuning / automation | Remove from default completion requirements. These are manual production options, not implemented automatic stages; use only for a specific observed problem with authorization. |
-| Historical helper scripts | Remove six unused registry entries: voicedCheck, crackFix, instProfile, shiftVerify, abGeneric, leadEqProbe. No user script/data is deleted. Optional/conditional scripts no longer block default doctor. A requested tool still fails clearly if its script is missing. |
 | Core safeguards | Keep actual model/config, source/output provenance, fresh output, duration, finite audio, clipping/true peak and error/WARN checks plus separate user listening acceptance. No automatic tuning loop or quality guarantee. |
 
 The default recipe remains two-level separation, baseline lead conversion, original harmony, standard complete mix/master, technical checks and user listening. Non-octave key changes still require accompaniment/harmony shift.
@@ -23,6 +22,6 @@ The prior accepted render is not repeated merely for this workflow cleanup. No m
 
 ## Reproduce checks
 
-Run `npm test` (15), `python -B test/adapter-cpu.py` (6), `python -B test/long-audio-cpu.py` (6), `npm run test:workflow` (7), `npm run test:setup` (8), `npm run test:contract` (37), and `npm run test:package`. The original requested 27-count baseline is the 15 + 6 + 6 regression set; the additional real external mix test contributes 3 more when run with `python -B test/mix-cpu.py --mix-dir pipeline/mix`. The earlier 1.1.0 total was 12 JS + 6 adapter + 3 mix = 21; counts are stated explicitly to avoid conflating suites. CI runs portable CPU suites on Windows and Linux; external real mix and GPU are not CI claims.
+Run `npm test` (15), `python -B test/adapter-cpu.py` (6), `python -B test/long-audio-cpu.py` (6), `npm run test:workflow` (6), `npm run test:setup` (8), `npm run test:contract` (28), and `npm run test:package`. The original requested 27-count baseline is the 15 + 6 + 6 regression set; the additional real mix test contributes 3 more when run with `python -B test/mix-cpu.py --mix-dir runtime`. The earlier 1.1.0 total was 12 JS + 6 adapter + 3 mix = 21; counts are stated explicitly to avoid conflating suites. CI runs portable CPU suites on Windows and Linux; external real mix and GPU are not CI claims.
 
 Removed the obsolete song-specific `test:e2e` and its npm command. Portable regression tests replace its stale-output success claims; the old file remains recoverable in Git and the local backup.

@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { statfs } from 'node:fs/promises';
 import { run, runPythonCode, runFfmpeg } from './runner.js';
 import {
-  DDSP_ASSETS, MSST_ASSETS, SCRIPTS, join, runtimePath,
+  DDSP_ASSETS, MSST_ASSETS, join, runtimePath,
   mixScriptPath, bundledScripts, listVoices,
 } from './config.js';
 
@@ -70,18 +70,6 @@ export async function diskFree(p) {
   } catch (err) {
     return { ok: false, error: String(err) };
   }
-}
-
-export function optionalScriptCheck(cfg) {
-  const missingScripts = Object.entries(SCRIPTS)
-    .filter(([, f]) => !existsSync(join(cfg.scriptsDir, f)))
-    .map(([k, f]) => `${k}(${f})`);
-  return {
-    name: `可选/条件工具脚本（${Object.keys(SCRIPTS).length} 个）`, level: 'info',
-    ok: missingScripts.length === 0,
-    detail: missingScripts.length ? `缺 ${missingScripts.length} 个: ${missingScripts.join(', ')}` : `全部就位（${cfg.scriptsDir}）`,
-    fix: missingScripts.length ? '重新 clone 仓库；pipeline/probe/ 随包分发，不需要另找脚本' : '',
-  };
 }
 
 /** 完整体检。返回 {ok, errors, warnings, checks[]} */
@@ -189,36 +177,16 @@ export async function doctor(cfg) {
     });
   }
 
-  // ── 音质库（可选，缺了会降级）──────────────────────────────────────
-  const qlib = cfg.qualityLibDir;
-  if (existsSync(qlib)) {
-    for (const pkg of ['mosqito', 'lameenc', 'mutagen']) {
-      const p = join(qlib, pkg);
-      checks.push({
-        name: `音质库 ${pkg}`, level: 'info', ok: existsSync(p),
-        // ★ 这些是 pip --target 装出来的**目录**，不能用文件大小判定
-        detail: existsSync(p) ? `已就位（${p}）` : `未安装（${p}）`,
-        fix: '',
-      });
-    }
-  } else {
-    checks.push({
-      name: '可选音质库目录', level: 'info', ok: false, detail: `不存在: ${qlib}`,
-      fix: 'pip install mosqito mutagen --no-deps --target <该目录>；缺了则 p95/p97 降级（不影响出成品）',
-    });
-  }
-
-  // ── 流水线脚本（随包 15 个 = 5 adapter + 8 probe + 2 mix/verify）──────
+  // ── 核心脚本（8 个 = 5 adapter + shift + mix/verify）──────────────────
   const bundled = bundledScripts();
   checks.push({
-    name: `随包流水线脚本（${bundled.length} 个）`, level: 'error',
+    name: `随包核心脚本（${bundled.length} 个）`, level: 'error',
     ok: bundled.every((x) => x.ok),
     detail: bundled.every((x) => x.ok)
-      ? `全部就位（runtime/ + pipeline/）`
+      ? '全部就位（runtime/）'
       : `缺: ${bundled.filter((x) => !x.ok).map((x) => `${x.kind}/${x.file}`).join(', ')}`,
-    fix: '重新 clone 仓库；这 15 个脚本已随包，不需要另找外部工程目录',
+    fix: '重新 clone 仓库；核心脚本已随包，不需要另找外部工程目录',
   });
-  checks.push(optionalScriptCheck(cfg));
 
   // ── 音色库 ──────────────────────────────────────────────────────────
   const voices = listVoices(cfg);

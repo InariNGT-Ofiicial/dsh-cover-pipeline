@@ -3,8 +3,8 @@
   "updated": "2026-10-17",
   "note": "材料清单：代码/脚本随仓库分发；大工程与权重不放进 git（体积 + 第三方许可）。本文件记录每一件的落位、大小与 sha256，供 verify-materials.mjs 校验。",
   "capabilities": {
-    "bundledScripts": 15,
-    "bundledBreakdown": "5 runtime adapter + 8 probe(QC/移调/裁剪/封装) + 2 mix/verify",
+    "bundledScripts": 8,
+    "bundledBreakdown": "5 runtime adapter + shift + mix/verify",
     "voiceModels": 8,
     "demo": "祥子 / model_20000.pt"
   },

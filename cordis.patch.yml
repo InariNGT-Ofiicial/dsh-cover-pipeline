@@ -6,12 +6,12 @@
 # ★ 路径默认全留空：安装后由 src/config.js **自动发现**
 #   - 依次尝试 DSH_COVER_ROOT、D:/AI-Song、C:/AudioWork、cwd
 #   - 在根目录里找 01_*（MSST）、02_*/DDSP-barbara-*（DDSP）、03_*（音色库）
-#   - 脚本默认用仓库自带的 pipeline/（15 个），不需要另配 probeDir
+#   - 脚本默认用仓库自带的 runtime/（8 个核心脚本），不需要另配 probeDir
 #   发现不到时，运行 `cover_setup` 会给出可直接粘的配置片段。
 #
 # 环境变量（可选）：
 #   DSH_COVER_ROOT   - AI-Song 根目录
-#   DSH_COVER_PROBE  - 工程数据目录，默认 <root>/_pipeline_bqll/_probe
+#   DSH_COVER_PROBE  - 工程数据目录，默认 <root>/cover_runs
 #
 # 注意：patch 会**整行替换**目标行的 config，故此处列出本插件所需的全部键。
 - insert:
@@ -34,8 +34,6 @@
         ffmpeg: ''
         voiceModel: ''
         voiceLibDir: ''
-        # 音质指标库（mosqito/mutagen，用 pip --target 装的独立目录；没有则 p95/p97 降级）
-        qualityLibDir: ''
 
         # ── 业务默认值 ────────────────────────────────────────────────
         targetLufs: -14.0

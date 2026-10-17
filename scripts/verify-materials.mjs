@@ -69,7 +69,7 @@ async function main() {
 
   const badScripts = scripts.filter((s) => !s.ok);
   add(`随包流水线脚本 ${scripts.length - badScripts.length}/${scripts.length}`, badScripts.length === 0,
-    badScripts.length ? `缺: ${badScripts.map((s) => `${s.kind}/${s.file}`).join(', ')}` : 'runtime/ + pipeline/ 齐全');
+    badScripts.length ? `缺: ${badScripts.map((s) => `${s.kind}/${s.file}`).join(', ')}` : 'runtime/ 齐全');
 
   for (const [label, p] of [
     ['MSST 目录', cfg.msstDir],
@@ -129,8 +129,7 @@ async function main() {
   if (args.writeConfig) {
     const local = {};
     for (const k of ['songRoot', 'pipelineRoot', 'probeDir', 'mixDir', 'msstDir', 'msstEnv',
-      'ddspDir', 'ddspEnv', 'ffmpeg', 'voiceLibDir', 'voiceModel', 'qualityLibDir',
-      'scriptsDir', 'mixScriptDir']) local[k] = cfg[k] ?? '';
+      'ddspDir', 'ddspEnv', 'ffmpeg', 'voiceLibDir', 'voiceModel']) local[k] = cfg[k] ?? '';
     if (picked) local.voiceModel = picked.model;
     writeFileSync(LOCAL_CONFIG, JSON.stringify(local, null, 2), 'utf8');
     wrote = LOCAL_CONFIG;

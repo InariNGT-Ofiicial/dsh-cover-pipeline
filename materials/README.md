@@ -1,6 +1,6 @@
 # 材料包（models / 整合包）
 
-**先说结论**：插件的 **15 个流水线脚本已经随仓库分发**，你不再需要去找「p51–p97」原工程目录。
+**先说结论**：插件的 **8 个核心脚本已经随仓库分发**（5 adapter + shift + mix/verify），你不再需要去找旧歌工程目录。
 还缺的只有三样**大文件**：MSST 整合包、DDSP 6.2 整合包、8 人音色模型包。它们不放进 git。
 
 ## 为什么不塞进 git
@@ -68,7 +68,7 @@ node scripts/verify-materials.mjs --root D:/AI-Song
 node scripts/verify-materials.mjs --root D:/AI-Song --voice 祥子 --write-config
 ```
 
-脚本会做三件事：① 核对随包 15 个脚本；② 核对目录/权重是否存在；③ 只对**选中的音色**算 sha256
+脚本会做三件事：① 核对随包 8 个核心脚本；② 核对目录/权重是否存在；③ 只对**选中的音色**算 sha256
 （避免每次把 2 GB 全哈希一遍）。清单与哈希见 [`manifest.json`](manifest.json)。
 
 ## 「一句话接入」怎么走

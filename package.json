@@ -2,7 +2,7 @@
   "name": "dsh-cover-pipeline",
   "version": "1.1.2",
   "private": true,
-  "description": "DSH local cover pipeline with optional diagnostics and packaging; external audio dependencies required",
+  "description": "DSH local cover pipeline: separation, conversion, shift, mix and verification; external audio dependencies required",
   "type": "module",
   "main": "./src/index.js",
   "exports": {
@@ -45,8 +45,6 @@
   "files": [
     "src/*.js",
     "runtime/*.py",
-    "pipeline/probe/*.py",
-    "pipeline/mix/*.py",
     "materials/*.json",
     "materials/*.md",
     "scripts/*.mjs",

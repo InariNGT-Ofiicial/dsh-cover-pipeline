@@ -20,7 +20,7 @@ import * as plugin from '../src/index.js';
 
 const EXPECTED_TOOLS = [
   'cover_doctor', 'cover_setup', 'cover_plan', 'cover_status', 'cover_separate', 'cover_shift',
-  'cover_convert', 'cover_mix', 'cover_verify', 'cover_qc', 'cover_cut', 'cover_release',
+  'cover_convert', 'cover_mix', 'cover_verify',
 ];
 
 // 自造夹具：不依赖任何本机素材；30 s / 44.1 kHz / 单声道 / 16 bit
@@ -183,9 +183,6 @@ const dryCases = [
   ['cover_convert', { src: CFG_LEAD, key: 5, outDir: path.join(OUT, 'f5'), dryRun: true }],
   ['cover_mix', { inst: CFG_INST, lead: CFG_LEAD, harm: CFG_LEAD, out: path.join(OUT, 'm.wav'), dryRun: true }],
   ['cover_verify', { wav: CFG_LEAD, dryRun: true }],
-  ['cover_qc', { kind: 'crack', lead: CFG_LEAD, ref: CFG_LEAD, a: 0, b: 30, dryRun: true }],
-  ['cover_cut', { src: CFG_LEAD, out: path.join(OUT, 'c.wav'), segs: '46.27:69.00', dryRun: true }],
-  ['cover_release', { wav: CFG_LEAD, outDir: OUT, name: 'x', title: 't', artist: 'a', dryRun: true }],
 ];
 for (const [n, args] of dryCases) {
   await check(`${n} dry-run`, async () => {

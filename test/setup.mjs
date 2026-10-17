@@ -12,8 +12,8 @@ import { resolveConfig, findVoice, bundledScripts } from '../src/config.js';
 
 const cfg = resolveConfig({});
 const scripts = bundledScripts();
-assert.equal(scripts.length, 15);
-assert.ok(scripts.every((s) => s.ok), '15 bundled scripts must exist');
+assert.equal(scripts.length, 8);
+assert.ok(scripts.every((s) => s.ok), '8 bundled core scripts must exist');
 
 const registry = new Map();
 await apply({
@@ -24,7 +24,7 @@ await apply({
 assert.ok(registry.has('cover_setup'));
 const setup = await registry.get('cover_setup').execute({});
 assert.equal(typeof setup.rendered, 'string');
-assert.match(setup.rendered, /随包脚本: 15\/15/);
+assert.match(setup.rendered, /随包脚本: 8\/8/);
 assert.match(setup.rendered, /演示资产: 祥子/);
 assert.match(setup.rendered, /pan\.baidu\.com/);
 assert.equal(setup.voices.length, cfg.voices.length);

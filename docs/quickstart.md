@@ -2,18 +2,15 @@
 
 ## 先说清楚：以前为什么说文件不够
 
-旧版仓库只有**插件 JS 源码**，而插件运行时要调用 15 个 Python 脚本：
+旧版仓库只有**插件 JS 源码**，而插件运行时要调用 Python 脚本：
 
-| 类别 | 数量 | 旧版在哪 |
+| 类别 | 数量 | 现在 |
 |---|---|---|
-| runtime adapter（转写/长音频/guided/mix/模型校验） | 5 | 只在作者本机，**没进 git** |
-| probe（移调、QC、裁剪、封装） | 8 | 要另找 p51–p97 原工程目录 |
-| mixture（`mix_master.py` / `verify_mix.py`） | 2 | 作者本机 `_pipeline_mingyue`，**没进 git** |
+| runtime adapter（转写/长音频/guided/mix/模型校验） | 5 | `runtime/`，随包 |
+| shift（伴奏/和声统一移调） | 1 | `runtime/shift.py`，随包 |
+| mix / verify（混音、验收） | 2 | `runtime/mix_master.py`、`runtime/verify_mix.py`，随包 |
 
-所以别人 clone 下来后，DSH 一检查就会说「需要 15 个流水线脚本、2 个混音验收脚本、2 个模型」——
-**不是下载姿势不对，是仓库当时确实缺这些文件。**
-
-现在 **15 个脚本全部随仓库分发**，在 `runtime/`、`pipeline/probe/`、`pipeline/mix/`。
+现在 **8 个核心脚本全部随仓库分发**。旧歌工程里的 QC / 裁剪 / 封装脚本已全部移除，不再需要 p51–p97 原工程目录。
 还差的只有模型/大工程（体积 + 授权原因不进 git）。
 
 ## 四步
@@ -38,7 +35,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Root D:\AI-Song -V
 
 它会：
 
-1. 校验随包 15 个脚本；
+1. 校验随包 8 个核心脚本；
 2. 自动发现 MSST / DDSP / 音色库；
 3. 核对 4 个预训练件 + 选中音色的 sha256；
 4. 写 `cover.local.json`（本机覆盖，git 忽略）；
@@ -84,4 +81,4 @@ node scripts/verify-materials.mjs --root D:\AI-Song --voice 高松灯
 1.1.1 起 full 模式按 ≤30 s 窗口重叠分块，渲染器只加载一次；不是靠加大显存。
 
 **Q：能商用/公开发布吗？**
-词曲著作权仍属原作者；音色模型是衍生权重，按原分享授权。插件不自动发布，`cover_release` 只做本地封装。
+词曲著作权仍属原作者；音色模型是衍生权重，按原分享授权。插件不自动发布；片段裁剪与 MP3 封装请在外部完成。
