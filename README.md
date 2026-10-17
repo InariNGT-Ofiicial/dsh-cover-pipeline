@@ -25,6 +25,7 @@
 
 1. **拿材料**（三样大文件，网盘链接 + 提取码 + 目录布局全在 [materials/README.md](materials/README.md)）：
    MSST 整合包、DDSP 6.2 整合包、8 人音色模型包。
+   **演示默认音色「祥子」的下载地址、包内路径与 sha256 见 [materials/README.md §演示资产](materials/README.md#演示使用的模型资产祥子)**。
 2. **一条命令接入**（自动发现路径、校验 sha256、写本机配置、安装插件）：
 
 ```powershell

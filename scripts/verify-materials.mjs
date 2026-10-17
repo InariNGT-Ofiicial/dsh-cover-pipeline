@@ -3,7 +3,7 @@
  * 材料校验：随包脚本 + 目录 + 权重 + 选中音色的 sha256。
  *
  * 用法：
- *   node scripts/verify-materials.mjs [--root D:/AI-Song] [--voice 祥子]
+ *   node scripts/verify-materials.mjs [--root D:/AI-Song] [--voice 祥子] [--demo]
  *        [--json out.json] [--write-config] [--hash-all]
  *
  * 退出码：0 全齐 / 1 有缺失 / 2 参数错误。
@@ -21,7 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const manifestPath = pjoin(here, '..', 'materials', 'manifest.json');
 
 function parseArgs(argv) {
-  const out = { root: '', voice: '', json: '', writeConfig: false, hashAll: false };
+  const out = { root: '', voice: '', json: '', writeConfig: false, hashAll: false, demo: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--root') out.root = argv[++i] ?? '';
@@ -29,6 +29,7 @@ function parseArgs(argv) {
     else if (a === '--json') out.json = argv[++i] ?? '';
     else if (a === '--write-config') out.writeConfig = true;
     else if (a === '--hash-all') out.hashAll = true;
+    else if (a === '--demo') out.demo = true;
     else if (a === '--help' || a === '-h') out.help = true;
     else { console.error(`未知参数: ${a}`); process.exit(2); }
   }
@@ -48,13 +49,15 @@ const bytes = (n) => `${(n / 1048576).toFixed(1)} MB`;
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log('用法: node scripts/verify-materials.mjs [--root D:/AI-Song] [--voice 祥子] [--json out.json] [--write-config] [--hash-all]');
+    console.log('用法: node scripts/verify-materials.mjs [--root D:/AI-Song] [--voice 祥子] [--demo] [--json out.json] [--write-config] [--hash-all]');
     return 0;
   }
 
   let manifest = { voiceModels: [], pretrains: [] };
   try { manifest = JSON.parse(readFileSync(manifestPath, 'utf8')); }
   catch (e) { console.error(`[warn] 读不到 ${manifestPath}: ${e.message}`); }
+
+  if (args.demo && manifest.demo?.voice && !args.voice) args.voice = manifest.demo.voice;
 
   const cfg = resolveConfig(args.root ? { songRoot: args.root } : {});
   const scripts = bundledScripts();
@@ -88,8 +91,10 @@ async function main() {
     let hash = '';
     if (existsSync(picked.model)) hash = await sha256(picked.model);
     const hashOk = !meta || hash === meta.sha256;
+    const pack = (manifest.packs ?? []).find((p) => p.id === (meta?.pack ?? manifest.demo?.sourcePackId));
+    const hint = pack && meta ? ` · 下载 ${pack.url} 码 ${pack.code} · 包内 ${meta.innerPath}` : '';
     add(`音色 ${picked.name}(${picked.steps}步)`, sizeOk && hashOk,
-      `${sizeOk ? '大小 OK' : '大小不符'}  sha256 ${hash.slice(0, 16)}…  ${picked.model}`);
+      `${sizeOk ? '大小 OK' : '大小不符'}  sha256 ${hash.slice(0, 16)}…  ${picked.model}${hint}`);
     if (!hashOk) add(`音色 ${picked.name} 哈希`, false, `清单 ${meta.sha256}，实际 ${hash}`);
     const cfgOk = existsSync(picked.config);
     add(`音色 ${picked.name} config.yaml`, cfgOk, picked.config);
@@ -101,11 +106,19 @@ async function main() {
     add('默认音色', false, args.voice ? `音色库没有 "${args.voice}"` : '未发现任何音色模型');
   }
 
+  if (args.demo && manifest.demo) {
+    const d = manifest.demo;
+    add(`演示资产 ${d.voice}(${d.steps}步)`, picked?.name === d.voice,
+      `下载 ${d.download.url} 码 ${d.download.code} · 包内 ${d.download.innerPath}`);
+  }
+
   const ok = checks.every((c) => c.ok);
+  const demo = manifest.demo;
   const lines = [
     `【材料校验】根目录: ${cfg.songRoot || '(未发现)'}`,
     `随包脚本: ${scripts.filter((s) => s.ok).length}/${scripts.length}`,
     `音色库: ${voices.length} 个${voices.length ? ' — ' + voices.map((v) => `${v.name}(${v.steps}步)`).join(' / ') : ''}`,
+    ...(demo ? [`演示资产: ${demo.voice}(${demo.steps}步) ← ${demo.download.url} 码 ${demo.download.code} · 包内 ${demo.download.innerPath}`] : []),
     '',
     ...checks.map((c) => `${c.ok ? '✅' : '❌'} ${c.name} — ${c.detail}`),
     '',
@@ -125,7 +138,8 @@ async function main() {
   }
 
   const report = {
-    ok, root: cfg.songRoot, voice: picked?.name ?? '', voices: voices.map((v) => ({ name: v.name, steps: v.steps, model: v.model })),
+    ok, root: cfg.songRoot, voice: picked?.name ?? '', demo: manifest.demo?.voice ?? '',
+    voices: voices.map((v) => ({ name: v.name, steps: v.steps, model: v.model })),
     checks, wrote,
   };
   if (args.json) writeFileSync(args.json, JSON.stringify(report, null, 2), 'utf8');

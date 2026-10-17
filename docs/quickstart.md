@@ -26,6 +26,8 @@
 | DDSP 6.2 整合包 | <https://pan.baidu.com/s/16LUHAc40KsCI449TbPQ29Q?pwd=j44k> | `j44k` | `02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2` |
 | 8 人音色模型包 | <https://pan.baidu.com/s/1GJBrq3287GA_KKwNudFDpw?pwd=2aj9> | `2aj9` | `03_音色模型_MYGO-AveMujica` |
 
+> **演示默认音色是「祥子」**，就在第 3 个包里：`03_音色模型_MYGO-AveMujica/祥子_步数20000/exp/reflow-test/`（`model_20000.pt` + `config.yaml`）。只想跑演示，下第 1、2、3 个包即可；校验用 `--demo`。
+
 默认根目录是 `D:\AI-Song`；放别处也行，下一步用 `-Root` 指过去。
 
 ### 2. 一条命令
@@ -58,10 +60,13 @@ powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Root D:\AI-Song -V
 ## 验证「到底缺什么」
 
 ```powershell
-node scripts/verify-materials.mjs --root D:\AI-Song --voice 祥子
+# 校验演示资产（祥子）
+node scripts/verify-materials.mjs --root D:\AI-Song --demo
+# 或指定任意音色
+node scripts/verify-materials.mjs --root D:\AI-Song --voice 高松灯
 ```
 
-输出逐项 ✅/❌，缺失会直接给下载入口。想连 DSH 一起看：`cover_doctor`。
+输出逐项 ✅/❌，并直接打印演示资产的网盘地址、提取码和包内路径。想连 DSH 一起看：`cover_doctor`。
 
 ## 常见问题
 

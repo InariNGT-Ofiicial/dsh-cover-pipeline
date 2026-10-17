@@ -14,13 +14,28 @@
 仓库里 `scripts/publish.ps1` 的拒绝清单也写死了：`*.pt / *.ckpt / *.wav / *.mp3` 一律不许进 git。
 这是有意为之，不是漏传。
 
+## 演示使用的模型资产（祥子）
+
+演示成品《丰川祥子 - 我恨明月不照我》和 A/B 对比用的就是 **祥子_步数20000**，下载地址如下：
+
+| 项 | 值 |
+|---|---|
+| 网盘包 | <https://pan.baidu.com/s/1GJBrq3287GA_KKwNudFDpw?pwd=2aj9> |
+| 提取码 | `2aj9` |
+| 包内路径 | `03_音色模型_MYGO-AveMujica/祥子_步数20000/exp/reflow-test/` |
+| 文件 | `model_20000.pt`（267.3 MB，sha256 `05080eaffde64345d081b1d3cadff19fff8d2a9ad31b46f228a57d69d7b19fa3`）+ `config.yaml` |
+| 校验 | `node scripts/verify-materials.mjs --root D:/AI-Song --demo` |
+
+> 网盘是按「8 人包」整包分享的，**没有单文件直链**；进包后取上面这个路径即可。
+> 只想跑演示，只需要：第 1 个 MSST 包 + 第 2 个 DDSP 包 + 第 3 个音色包里的祥子目录。
+
 ## 三样材料（百度网盘，原分享，非本仓库再分发）
 
 | # | 材料 | 链接 | 提取码 | 解压到 |
 |---|---|---|---|---|
 | 1 | MSST-GUI 人声分离整合包 | <https://pan.baidu.com/s/1gLO9U5jcfrtO3WJmAAyo1Q?pwd=u3r2> | `u3r2` | `<根>/01_人声分离_MSST-GUI` |
 | 2 | DDSP-SVC 6.2 整合包（50 系 env） | <https://pan.baidu.com/s/16LUHAc40KsCI449TbPQ29Q?pwd=j44k> | `j44k` | `<根>/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2` |
-| 3 | 8 人音色模型包 | <https://pan.baidu.com/s/1GJBrq3287GA_KKwNudFDpw?pwd=2aj9> | `2aj9` | `<根>/03_音色模型_MYGO-AveMujica` |
+| 3 | 8 人音色模型包（演示用祥子也在这里） | <https://pan.baidu.com/s/1GJBrq3287GA_KKwNudFDpw?pwd=2aj9> | `2aj9` | `<根>/03_音色模型_MYGO-AveMujica` |
 
 来源：B 站 UP 主「路边墨缇斯」教程 `BV1JU2LBZEt5`；整合包作者 @领航员未鸟。
 **许可按原分享与包内说明**；本仓库只记录链接、落位与 sha256，不再分发权重。

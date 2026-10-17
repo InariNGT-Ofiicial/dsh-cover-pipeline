@@ -25,6 +25,8 @@ assert.ok(registry.has('cover_setup'));
 const setup = await registry.get('cover_setup').execute({});
 assert.equal(typeof setup.rendered, 'string');
 assert.match(setup.rendered, /随包脚本: 15\/15/);
+assert.match(setup.rendered, /演示资产: 祥子/);
+assert.match(setup.rendered, /pan\.baidu\.com/);
 assert.equal(setup.voices.length, cfg.voices.length);
 
 if (!cfg.voices.length) {

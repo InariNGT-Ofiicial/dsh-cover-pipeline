@@ -15,7 +15,7 @@ import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join as pjoin } from 'node:path';
 
 import {
-  resolveConfig, join, findVoice, listVoices, bundledScripts, LOCAL_CONFIG,
+  resolveConfig, join, findVoice, listVoices, bundledScripts, demoAsset, LOCAL_CONFIG,
 } from './config.js';
 import { runStage, runSeparation } from './execution.js';
 import { doctor, renderDoctor, probePython, diskFree } from './checks.js';
@@ -250,10 +250,12 @@ export async function apply(ctx, config) {
     async execute(args) {
       const next = resolveConfig({ ...cfg, ...(args.root ? { songRoot: args.root } : {}) });
       const scripts = bundledScripts();
+      const demo = demoAsset();
       const voices = next.voices;
       const picked = args.voice
         ? findVoice(next, args.voice)
-        : (voices.find((v) => v.model === next.voiceModel) ?? null);
+        : (demo ? voices.find((v) => v.name === demo.voice) : null)
+          ?? (voices.find((v) => v.model === next.voiceModel) ?? null);
       const missing = [];
       const badScripts = scripts.filter((s) => !s.ok);
       if (badScripts.length) missing.push(`随包脚本缺 ${badScripts.length} 个: ${badScripts.map((s) => `${s.kind}/${s.file}`).join(', ')}`);
@@ -263,6 +265,9 @@ export async function apply(ctx, config) {
       ]) if (!p || !existsSync(p)) missing.push(`${label} 不存在: ${p || '(空)'}`);
       if (!next.voiceModel || !existsSync(next.voiceModel)) missing.push(`目标音色权重不存在: ${next.voiceModel || '(空)'}`);
       if (args.voice && !picked) missing.push(`音色库中没有 "${args.voice}"；可用: ${voices.map((v) => v.name).join(', ') || '（空）'}`);
+      if (demo && !voices.some((v) => v.name === demo.voice)) {
+        missing.push(`演示资产「${demo.voice}」缺失 — 下载 ${demo.download.url} 码 ${demo.download.code}，包内 ${demo.download.innerPath}`);
+      }
       if (!existsSync(join(next.msstDir, 'pretrain/MelBandRoformer_kim.ckpt'))) missing.push('MSST kim 权重缺失（见 materials/README.md）');
       if (!existsSync(join(next.ddspDir, 'pretrain/contentvec/checkpoint_best_legacy_500.pt'))) missing.push('DDSP ContentVec 缺失（见 materials/README.md）');
 
@@ -283,7 +288,8 @@ export async function apply(ctx, config) {
       const lines = [
         `【一句话接入｜${next.songRoot || '(未发现根目录)'}】`,
         `随包脚本: ${scripts.filter((s) => s.ok).length}/${scripts.length}`,
-        `音色库: ${voices.length} 个${voices.length ? ' — ' + voices.map((v) => `${v.name}(${v.steps}步)`).join(' / ') : ''}`,
+        `音色库: ${voices.length} 个${voices.length ? ' — ' + voices.map((v) => `${v.name}${demo && v.name === demo.voice ? '(演示)' : ''}(${v.steps}步)`).join(' / ') : ''}`,
+        ...(demo ? [`演示资产: ${demo.voice}(${demo.steps}步) ← ${demo.download.url} 码 ${demo.download.code} · 包内 ${demo.download.innerPath}`] : []),
         `选中音色: ${picked ? `${picked.name}(${picked.steps}步)  ${picked.model}` : '(未选中；可用 voice 指定)'}`,
         '',
         missing.length ? '── 还缺 ──' : '── 依赖齐全，可以开跑 ──',

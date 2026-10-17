@@ -338,6 +338,14 @@ export function mixScriptPath(cfg, key) {
   return `${cfg.mixScriptDir}/${name}`;
 }
 
+/** 演示资产（来自 materials/manifest.json 的 demo 段）；读不到返回 null。 */
+export function demoAsset() {
+  try {
+    const m = JSON.parse(readFileSync(join(BUNDLED.materials, 'manifest.json'), 'utf8'));
+    return m && typeof m.demo === 'object' ? m.demo : null;
+  } catch { return null; }
+}
+
 /** 随包 15 个脚本是否齐全（5 runtime + 8 probe + 2 mix）。 */
 export function bundledScripts() {
   const list = [
