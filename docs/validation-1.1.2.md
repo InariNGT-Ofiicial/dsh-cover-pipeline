@@ -23,6 +23,6 @@ The prior accepted render is not repeated merely for this workflow cleanup. No m
 
 ## Reproduce checks
 
-Run `npm test` (15), `python -B test/adapter-cpu.py` (6), `python -B test/long-audio-cpu.py` (6), `npm run test:workflow` (7), and `npm run test:package`. The original requested 27-count baseline is the 15 + 6 + 6 regression set; the additional real external mix test contributes 3 more when run with `python -B test/mix-cpu.py --mix-dir <compatible-project>`. The earlier 1.1.0 total was 12 JS + 6 adapter + 3 mix = 21; counts are stated explicitly to avoid conflating suites. CI runs portable CPU suites on Windows and Linux; external real mix and GPU are not CI claims.
+Run `npm test` (15), `python -B test/adapter-cpu.py` (6), `python -B test/long-audio-cpu.py` (6), `npm run test:workflow` (7), `npm run test:setup` (8), `npm run test:contract` (37), and `npm run test:package`. The original requested 27-count baseline is the 15 + 6 + 6 regression set; the additional real external mix test contributes 3 more when run with `python -B test/mix-cpu.py --mix-dir pipeline/mix`. The earlier 1.1.0 total was 12 JS + 6 adapter + 3 mix = 21; counts are stated explicitly to avoid conflating suites. CI runs portable CPU suites on Windows and Linux; external real mix and GPU are not CI claims.
 
 Removed the obsolete song-specific `test:e2e` and its npm command. Portable regression tests replace its stale-output success claims; the old file remains recoverable in Git and the local backup.
