@@ -440,7 +440,10 @@ export async function apply(ctx, config) {
         };
         lines.push('', `环境: MSST ${env.msst} ｜ DDSP ${env.ddsp} ｜ 磁盘 ${env.freeGB} GB 可用`);
       }
-      return { dir, exists: scan.exists, entries: scan.entries, env, rendered: lines.join('\n') };
+      // env 是可选字段：undefined 会让输出校验器判为非法 JSON，故只在有值时带上。
+      const out = { dir, exists: scan.exists, entries: scan.entries, rendered: lines.join('\n') };
+      if (env) out.env = env;
+      return out;
     },
   });
 
