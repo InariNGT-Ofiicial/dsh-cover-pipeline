@@ -218,7 +218,8 @@ const normVoice = (s) => String(s ?? '').toLowerCase().replace(/_步数\d+/g, ''
 
 /** 按名字找音色；支持「祥子」「祥子_步数20000」；同名取步数最高。 */
 export function findVoice(cfg, query) {
-  const vs = Array.isArray(cfg.voices) ? cfg.voices : listVoices(cfg);
+  // cfg.voices 是启动时快照；材料在启动后才解压时为空，故空则现扫一次。
+  const vs = Array.isArray(cfg.voices) && cfg.voices.length ? cfg.voices : listVoices(cfg);
   const q = normVoice(query);
   if (!q) return null;
   const exact = vs.filter((v) => normVoice(v.name) === q);

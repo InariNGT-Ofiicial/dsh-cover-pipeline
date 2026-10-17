@@ -104,7 +104,7 @@ export async function doctor(cfg) {
     checks.push({
       name, level: 'error', ok: existsSync(p),
       detail: existsSync(p) ? p : `不存在: ${p}`,
-      fix: existsSync(p) ? '' : '检查 cordis.patch.yml 里的路径配置',
+      fix: existsSync(p) ? '' : '把材料解压到 <songRoot>/01_*、02_*；或运行 cover_setup 看缺失清单',
     });
   }
 
@@ -146,20 +146,20 @@ export async function doctor(cfg) {
 
   // ── 模型权重 ────────────────────────────────────────────────────────
   checks.push(fileRow('HiFiGAN 声码器', join(cfg.ddspDir, DDSP_ASSETS.hifigan),
-    { minBytes: 10e6, fix: 'DDSP 的 pretrain 缺失，需重新获取' }));
+    { minBytes: 10e6, fix: 'DDSP 的 pretrain 缺失；下载入口见 materials/README.md' }));
   checks.push(fileRow('ContentVec 编码器', join(cfg.ddspDir, DDSP_ASSETS.contentvec),
-    { minBytes: 10e6, fix: 'DDSP 的 pretrain 缺失，需重新获取' }));
+    { minBytes: 10e6, fix: 'DDSP 的 pretrain 缺失；下载入口见 materials/README.md' }));
   checks.push(fileRow('目标音色模型 voiceModel', cfg.voiceModel,
-    { minBytes: 10e6, fix: '把音色模型的 exp/ 复制到 ddspDir（见模型包内说明）' }));
+    { minBytes: 10e6, fix: '下载「8 人音色模型」包，解压到 <songRoot>/03_音色模型_*；入口见 materials/README.md' }));
   checks.push(fileRow('实际转换模型 config.yaml', join(dirname(cfg.voiceModel), 'config.yaml')));
   if (existsSync(cfg.voiceModel) && statSync(cfg.voiceModel).isFile()) {
     checks.push({ name: '实际默认转换权重 SHA256', level: 'info', ok: true,
       detail: `${createHash('sha256').update(readFileSync(cfg.voiceModel)).digest('hex')}  ${cfg.voiceModel}`, fix: '' });
   }
   checks.push(fileRow('MSST 人声权重', join(cfg.msstDir, MSST_ASSETS.vocalModel),
-    { minBytes: 10e6, fix: 'MSST 的 pretrain 缺失' }));
+    { minBytes: 10e6, fix: 'MSST 的 pretrain 缺失；下载入口见 materials/README.md' }));
   checks.push(fileRow('MSST 卡啦权重', join(cfg.msstDir, MSST_ASSETS.karaModel),
-    { minBytes: 1e6, level: 'error', fix: '默认保留原和声需要二级分离；缺失时禁止静默降级' }));
+    { minBytes: 1e6, level: 'error', fix: '默认保留原和声需要二级分离；缺失时禁止静默降级（见 materials/README.md）' }));
   for (const [name, file] of [
     ['kim config', join(cfg.msstDir, MSST_ASSETS.vocalConfig)],
     ['karaoke config', join(cfg.msstDir, MSST_ASSETS.karaConfig)],
