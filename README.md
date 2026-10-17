@@ -84,15 +84,18 @@ baseline：**kim → karaoke → 只换主唱 → 保留原和声残差 → stan
 ## 测试和验证
 
 ```powershell
-npm test
-npm run test:workflow
-python -B test/long-audio-cpu.py
-python -B test/adapter-cpu.py
-python -B test/mix-cpu.py --mix-dir <兼容混音工程绝对路径>
-npm run test:package
+npm test                        # 15 项回归
+npm run test:workflow           # 7 项流程契约
+npm run test:setup              # 8 项：15 脚本齐全 + cover_setup + 按名字选音色
+npm run test:contract           # 37 项：工具定义/输出契约 + 全工具 dry-run（自造夹具）
+python -B test/adapter-cpu.py   # 6 项
+python -B test/long-audio-cpu.py # 6 项
+python -B test/mix-cpu.py --mix-dir pipeline\mix   # 3 项，用随包混音实现
+npm run test:package            # 打包边界：17 个脚本 + 清单，无权重/音频
+node scripts/verify-materials.mjs --root D:\AI-Song --voice 祥子
 ```
 
-Python CPU 测试需要 numpy/scipy/soundfile；混音测试另需外部混音实现及依赖。`COVER_TEST_TMP` 可指定可写临时目录。CI 仅运行无 GPU 回归。`test:contract` 需要配置本地环境和测试素材，不能冒充新歌全链路验证；已移除硬编码旧歌产物的 `test:e2e`。已完成的 CPU、真实插件 GPU 集成、用户提供的 DSH 定义匹配及用户听审分别见 [验证说明](docs/validation-1.1.0.md)。
+Python CPU 测试需要 numpy/scipy/soundfile；混音测试现在直接用随包 `pipeline/mix`。CI 跑前四项 JS + 打包边界（Windows/Linux，无 GPU）。`test:contract` 里的 doctor 会读本机环境，不能冒充新歌全链路验证；已移除硬编码旧歌产物的 `test:e2e`。已完成的 CPU、真实插件 GPU 集成及用户听审见 [验证说明](docs/validation-1.1.0.md)。
 
 ## 输入源经验（2026-10-15 修正）
 
