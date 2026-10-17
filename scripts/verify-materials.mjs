@@ -91,6 +91,12 @@ async function main() {
     add(`音色 ${picked.name}(${picked.steps}步)`, sizeOk && hashOk,
       `${sizeOk ? '大小 OK' : '大小不符'}  sha256 ${hash.slice(0, 16)}…  ${picked.model}`);
     if (!hashOk) add(`音色 ${picked.name} 哈希`, false, `清单 ${meta.sha256}，实际 ${hash}`);
+    const cfgOk = existsSync(picked.config);
+    add(`音色 ${picked.name} config.yaml`, cfgOk, picked.config);
+    if (cfgOk && meta?.configSha256) {
+      const ch = await sha256(picked.config);
+      add(`音色 ${picked.name} config 哈希`, ch === meta.configSha256, ch.slice(0, 16) + '…');
+    }
   } else {
     add('默认音色', false, args.voice ? `音色库没有 "${args.voice}"` : '未发现任何音色模型');
   }
