@@ -1,6 +1,6 @@
 {
   "name": "dsh-cover-pipeline",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "private": true,
   "description": "DSH local cover pipeline: separation, conversion, shift, mix and verification; external audio dependencies required",
   "type": "module",
@@ -19,7 +19,8 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
   },
   "dsh": {
     "bundle": {
@@ -32,7 +33,8 @@
     "test:package": "node test/package.mjs",
     "test:workflow": "node test/workflow.mjs",
     "test:setup": "node test/setup.mjs",
-    "verify:materials": "node scripts/verify-materials.mjs"
+    "verify:materials": "node scripts/verify-materials.mjs",
+    "test:host": "node scripts/test-dsh-host.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.1"
@@ -54,5 +56,9 @@
     "docs/*.md",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/InariNGT-Ofiicial/dsh-cover-pipeline.git"
+  }
 }

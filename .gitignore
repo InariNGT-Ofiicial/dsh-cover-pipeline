@@ -39,3 +39,4 @@ pipeline/probe/_sq/
 # Python 缓存
 __pycache__/
 *.pyc
+work/

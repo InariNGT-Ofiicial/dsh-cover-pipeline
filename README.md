@@ -1,5 +1,7 @@
 # dsh-cover-pipeline
 
+兼容维护：同时支持 **DSH 0.2.1-rc.2 / rc.3**，保留旧版用法与设置。验证范围与复现见 [DSH 兼容说明](docs/DSH_COMPATIBILITY.md)。
+
 面向 DeepSeek Harness（DSH）的本地 AI 翻唱插件，版本 **1.1.2**。通过 **9 个工具**组织分离、移调、换声、混音和验收。JavaScript 无运行时 npm 依赖；音频处理依赖外部 Python 工程与模型。
 
 > 把「分离 → 换声 →（条件）移调 → 混音 → 验收 → 听审」做成 DSH 里可直接调用的工具。
